@@ -5,3 +5,8 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+
+pub mod numeric;
+mod character;
+
+pub use character::Character;
