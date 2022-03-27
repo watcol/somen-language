@@ -74,13 +74,12 @@ macro_rules! int_parser {
 ///
 /// The taken function must return negative result if the argument is `true`, and vice versa.
 /// If `plus_sign` is `true`, it allows plus signs besides minus signs, has no effects.
-pub fn signed<N, F, P, I, C>(parser: F, plus_sign: bool) -> impl Parser<I, Output = N>
+pub fn signed<'a, N, F, P, I, C>(parser: F, plus_sign: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32>,
-    F: Fn(bool) -> P,
-    P: Parser<I, Output = N>,
-    I: Input<Ok = C> + ?Sized,
-    C: Character,
+    F: Fn(bool) -> P + 'a,
+    P: Parser<I, Output = N> + 'a,
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     is(move |c: &C| c.is_minus() || (plus_sign && c.is_plus()))
         .expect(if plus_sign {
@@ -101,12 +100,11 @@ where
 /// This function is for symmetry with the function [`signed`], so like it, the taken function
 /// must return negative result if the argument is `true`, and vice versa.
 #[inline]
-pub fn unsigned<N, F, P, I, C>(parser: F) -> impl Parser<I, Output = N>
+pub fn unsigned<'a, N, F, P, I, C>(parser: F) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32>,
     F: Fn(bool) -> P,
-    P: Parser<I, Output = N>,
-    I: Input<Ok = C> + ?Sized,
+    P: Parser<I, Output = N> + 'a,
+    I: Positioned<Ok = C> + ?Sized,
     C: Character,
 {
     parser(false)
@@ -116,11 +114,12 @@ where
 ///
 /// Note that this function doesn't support infinities or `NaN`s, you must implement it by
 /// yourself.
+// TODO: Implement Eisel-Lemire algolithm.
 #[cfg(feature = "alloc")]
-pub fn float<N, I>(neg: bool) -> impl Parser<I, Output = N>
+pub fn float<'a, N, I>(neg: bool) -> impl Parser<I, Output = N> + 'a
 where
     N: FromStr + Neg<Output = N>,
-    I: Input<Ok = char>,
+    I: Input<Ok = char> + 'a,
 {
     let integer = (non_zero_digit(10).once(), digit(10).repeat(..))
         .or(is(Character::is_zero).expect("zero").once());
@@ -146,11 +145,11 @@ where
 }
 
 /// An integer with given radix which has no trailing zeros.
-pub fn integer<N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N>
+pub fn integer<'a, N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32>,
-    I: Input<Ok = C> + ?Sized,
-    C: Character,
+    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     integer_inner(
         (non_zero_digit(radix).once(), digit(radix).repeat(..))
@@ -161,21 +160,25 @@ where
 }
 
 /// An integer with given radix which allows trailing zeros.
-pub fn integer_trailing_zeros<N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N>
+pub fn integer_trailing_zeros<'a, N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32>,
-    I: Input<Ok = C> + ?Sized,
-    C: Character,
+    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     integer_inner(digit(radix).repeat(1..), radix, neg)
 }
 
-fn integer_inner<N, S, I, C>(streamed: S, radix: u32, neg: bool) -> impl Parser<I, Output = N>
+fn integer_inner<'a, N, S, I, C>(
+    streamed: S,
+    radix: u32,
+    neg: bool,
+) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32>,
-    S: StreamedParser<I, Item = C>,
-    I: Positioned<Ok = C> + ?Sized,
-    C: Character,
+    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    S: StreamedParser<I, Item = C> + 'a,
+    I: Positioned<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     let integer = streamed.try_fold(value_fn(N::zero), move |acc, x| {
         N::try_from(radix)
@@ -203,10 +206,10 @@ where
 }
 
 /// Parses a digit with given radix.
-pub fn digit<I, C>(radix: u32) -> impl Parser<I, Output = C>
+pub fn digit<'a, I, C>(radix: u32) -> impl Parser<I, Output = C> + 'a
 where
-    I: Positioned<Ok = C> + ?Sized,
-    C: Character,
+    I: Positioned<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     let digit = is(move |c: &C| c.is_digit(radix));
 
@@ -221,10 +224,10 @@ where
 }
 
 /// Parses a non-zero digit with given radix.
-pub fn non_zero_digit<I, C>(radix: u32) -> impl Parser<I, Output = C>
+pub fn non_zero_digit<'a, I, C>(radix: u32) -> impl Parser<I, Output = C> + 'a
 where
-    I: Positioned<Ok = C> + ?Sized,
-    C: Character,
+    I: Positioned<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
 {
     let digit = is(move |c: &C| c.is_digit(radix) && !c.is_zero());
 
