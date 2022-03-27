@@ -1,4 +1,6 @@
 //! Parsers for numeric literals.
+use core::ops::Neg;
+use core::str::FromStr;
 use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, Zero};
 use somen::prelude::*;
 
@@ -108,6 +110,39 @@ where
     C: Character,
 {
     parser(false)
+}
+
+/// A floating point number.
+///
+/// Note that this function doesn't support infinities or `NaN`s, you must implement it by
+/// yourself.
+#[cfg(feature = "alloc")]
+pub fn float<N, I>(neg: bool) -> impl Parser<I, Output = N>
+where
+    N: FromStr + Neg<Output = N>,
+    I: Input<Ok = char>,
+{
+    let integer = (non_zero_digit(10).once(), digit(10).repeat(..))
+        .or(is(Character::is_zero).expect("zero").once());
+    let decimal = (
+        is(Character::is_point).expect("a decimal point").once(),
+        digit(10).repeat(1..),
+    );
+    let exponent = (
+        is(Character::is_exp).expect("a exponent mark").once(),
+        choice((
+            is(Character::is_plus).expect("a plus sign"),
+            is(Character::is_minus).expect("a minus sign"),
+        ))
+        .once()
+        .opt(),
+        digit(10).repeat(1..),
+    );
+
+    (integer, decimal.opt(), exponent.opt())
+        .collect::<alloc::string::String>()
+        .try_map(|s| N::from_str(s.as_str()).or(Err("a valid floating point number")))
+        .map(move |i| if neg { -i } else { i })
 }
 
 /// An integer with given radix which has no trailing zeros.

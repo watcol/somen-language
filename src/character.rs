@@ -3,6 +3,12 @@ pub trait Character: Clone {
     /// Checks if the character is zero (`0`) or not.
     fn is_zero(&self) -> bool;
 
+    /// Checks if the character is a decimal point (`.`) or not.
+    fn is_point(&self) -> bool;
+
+    /// Checks if the character is a exponent mark (`e`/`E`) or not.
+    fn is_exp(&self) -> bool;
+
     /// Checks if the character is plus sign (`+`) or not.
     fn is_plus(&self) -> bool;
 
@@ -28,6 +34,16 @@ impl Character for char {
     #[inline]
     fn is_zero(&self) -> bool {
         *self == '0'
+    }
+
+    #[inline]
+    fn is_point(&self) -> bool {
+        *self == '.'
+    }
+
+    #[inline]
+    fn is_exp(&self) -> bool {
+        *self == 'e' || *self == 'E'
     }
 
     #[inline]
