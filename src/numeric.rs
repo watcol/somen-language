@@ -4,6 +4,44 @@ use somen::prelude::*;
 
 use crate::Character;
 
+/// Generates a function returns a integer parser.
+///
+/// This macro takes comma-separated list of patterns `prefix => radix` like `"0x" => 16`, and `_ => radix`
+/// in the last are interpreted as a fallback without prefix.
+///
+/// # Examples
+/// ```
+/// use somen::prelude::*;
+/// use somen_language::numeric::signed;
+/// use somen_language::int_parser;
+///
+/// fn int<I: Input<Ok = char>>() -> impl Parser<I, Output = i64> {
+///     signed(
+///         int_parser!{
+///             "0x" => 16,
+///             "0o" => 8,
+///             "0b" => 2,
+///             _ => 10,
+///         },
+///         true,
+///     )
+/// }
+/// ```
+#[macro_export]
+macro_rules! int_parser {
+    ($($prefix:literal => $radix:expr,)* _ => $rad:expr $(,)?) => {
+        |neg: bool| somen::parser::choice((
+            $(
+                somen::parser::combinator::Prefix::new(
+                    somen::parser::tag($prefix),
+                    $crate::numeric::integer_trailing_zeros($radix, neg),
+                ),
+            )*
+            $crate::numeric::integer($rad, neg),
+        ))
+    };
+}
+
 /// Takes a function returns a integer parser, returns a parser of signed integer.
 ///
 /// The taken function must return negative result if the argument is `true`, and vice versa.
