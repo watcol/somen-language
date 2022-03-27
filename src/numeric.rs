@@ -11,21 +11,47 @@ use crate::Character;
 ///
 /// # Examples
 /// ```
+/// # futures::executor::block_on(async {
 /// use somen::prelude::*;
 /// use somen_language::numeric::signed;
 /// use somen_language::int_parser;
 ///
-/// fn int<I: Input<Ok = char>>() -> impl Parser<I, Output = i64> {
-///     signed(
-///         int_parser!{
-///             "0x" => 16,
-///             "0o" => 8,
-///             "0b" => 2,
-///             _ => 10,
-///         },
-///         true,
-///     )
-/// }
+/// let mut parser = signed::<i64, _, _, _, _>(
+///     int_parser!{
+///         "0x" => 16,
+///         "0o" => 8,
+///         "0b" => 2,
+///         _ => 10,
+///     },
+///     true,
+/// ).skip(eof());
+///
+/// let mut src1 = stream::from_iter("0xDEADb33f".chars())
+///     .positioned::<usize>()
+///     .buffered_rewind();
+/// assert_eq!(parser.parse(&mut src1).await.unwrap(), 0xdeadb33f);
+///
+/// let mut src2 = stream::from_iter("-0o755".chars())
+///     .positioned::<usize>()
+///     .buffered_rewind();
+/// assert_eq!(parser.parse(&mut src2).await.unwrap(), -0o755);
+///
+/// let mut src3 = stream::from_iter("+0b00001111".chars())
+///     .positioned::<usize>()
+///     .buffered_rewind();
+/// assert_eq!(parser.parse(&mut src3).await.unwrap(), 0b00001111);
+///
+/// let mut src4 = stream::from_iter("-425".chars())
+///     .positioned::<usize>()
+///     .buffered_rewind();
+/// assert_eq!(parser.parse(&mut src4).await.unwrap(), -425);
+///
+/// // Trailing zeros is not allowed.
+/// let mut src5 = stream::from_iter("050".chars())
+///     .positioned::<usize>()
+///     .buffered_rewind();
+/// assert!(parser.parse(&mut src5).await.is_err());
+/// # });
 /// ```
 #[macro_export]
 macro_rules! int_parser {
