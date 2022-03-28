@@ -83,7 +83,13 @@ where
         radix,
         neg,
     )
-    .try_map(|x| x.map(|(n, _)| n).ok_or("a not too large number."))
+    .try_map(|(acc, overflowed, _)| {
+        if overflowed {
+            Err("a not too large number.")
+        } else {
+            Ok(acc)
+        }
+    })
 }
 
 /// An integer with given radix which allows trailing zeros.
@@ -93,8 +99,15 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(digit(radix).repeat(1..), N::zero(), radix, neg)
-        .try_map(|x| x.map(|(n, _)| n).ok_or("a not too large number."))
+    integer_inner(digit(radix).repeat(1..), N::zero(), radix, neg).try_map(
+        |(acc, overflowed, _)| {
+            if overflowed {
+                Err("a not too large number.")
+            } else {
+                Ok(acc)
+            }
+        },
+    )
 }
 
 pub(super) fn integer_inner<'a, N, S, I, C>(
@@ -102,24 +115,36 @@ pub(super) fn integer_inner<'a, N, S, I, C>(
     default: N,
     radix: u8,
     neg: bool,
-) -> impl Parser<I, Output = Option<(N, u8)>> + 'a
+) -> impl Parser<I, Output = (N, bool, u8)> + 'a
 where
     N: CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     S: StreamedParser<I, Item = C> + 'a,
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    let integer = streamed.fold(value(Some((default, 0))), move |acc, x| {
-        let mut x = N::try_from(x.to_digit_unchecked(radix)).ok()?;
-        if neg {
-            x = x.checked_neg()?;
-        }
-        let (n, count) = acc?;
-        Some((
-            n.checked_mul(&N::try_from(radix).ok()?)?.checked_add(&x)?,
-            count + 1,
-        ))
-    });
+    let n_radix = N::try_from(radix).ok();
+    let integer = streamed.fold(
+        value((default, n_radix.is_none(), 0)),
+        move |(acc, overflowed, count), x| {
+            if overflowed {
+                return (acc, true, count);
+            }
+            let res = acc
+                .checked_mul(n_radix.as_ref().unwrap())
+                .zip(N::try_from(x.to_digit_unchecked(radix)).ok().and_then(|x| {
+                    if neg {
+                        x.checked_neg()
+                    } else {
+                        Some(x)
+                    }
+                }))
+                .and_then(|(acc, x)| acc.checked_add(&x));
+            match res {
+                Some(x) => (x, false, count + 1),
+                None => (acc, true, count),
+            }
+        },
+    );
 
     #[cfg(feature = "alloc")]
     {
