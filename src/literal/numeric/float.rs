@@ -1,9 +1,10 @@
 //! Parsers for floating point decimals.
-use core::ops::Neg;
-use core::str::FromStr;
+use core::ops::{Add, Mul, Neg};
+use num_traits::{Pow, Zero};
 use somen::prelude::*;
 
-use super::{digit, non_zero_digit};
+use super::integer::{integer, integer_trailing_zeros};
+use super::{digit, signed};
 use crate::Character;
 
 /// A floating point number.
@@ -12,30 +13,46 @@ use crate::Character;
 /// yourself.
 // TODO: Implement Eisel-Lemire algolithm.
 #[cfg(feature = "alloc")]
-pub fn float<'a, N, I>(neg: bool) -> impl Parser<I, Output = N> + 'a
+pub fn float<'a, N, I, C>(neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: FromStr + Neg<Output = N>,
-    I: Input<Ok = char> + 'a,
+    N: Zero
+        + Add<N, Output = N>
+        + Pow<i32, Output = N>
+        + Mul<N, Output = N>
+        + Neg<Output = N>
+        + TryFrom<u64>
+        + Clone
+        + 'a,
+    I: Input<Ok = C> + 'a,
+    C: Character + 'a,
 {
-    let integer = (non_zero_digit(10).once(), digit(10).repeat(..))
-        .or(is(Character::is_zero).expect("zero").once());
-    let decimal = (
-        is(Character::is_point).expect("a decimal point").once(),
-        digit(10).repeat(1..),
-    );
-    let exponent = (
-        is(Character::is_exp).expect("a exponent mark").once(),
-        choice((
-            is(Character::is_plus).expect("a plus sign"),
-            is(Character::is_minus).expect("a minus sign"),
-        ))
-        .once()
-        .opt(),
-        digit(10).repeat(1..),
-    );
+    let integer = integer(10, false);
+    let fraction = is(Character::is_point)
+        .expect("a decimal point")
+        .prefix(digit(10).repeat(1..))
+        .try_fold::<_, _, &str>(value((N::zero(), 0)), |(acc, offset), digit: C| {
+            Ok((
+                acc + N::try_from(10).or(Err("a valid float"))?.pow(offset - 1)
+                    * N::try_from(digit.to_digit(10) as u64).or(Err("a valid float"))?,
+                offset - 1,
+            ))
+        })
+        .map(|(frac, _)| frac);
+    let exponent = is(Character::is_exp)
+        .expect("a exponent mark")
+        .prefix(signed(|neg| integer_trailing_zeros(10, neg), true));
 
-    (integer, decimal.opt(), exponent.opt())
-        .collect::<alloc::string::String>()
-        .try_map(|s| N::from_str(s.as_str()).or(Err("a valid floating point number")))
-        .map(move |i| if neg { -i } else { i })
+    (integer, fraction.opt(), exponent.opt()).try_map::<_, _, &str>(move |(int, frac, exp)| {
+        let mut int = N::try_from(int).or(Err("a not too large number."))?;
+        if let Some(f) = frac {
+            int = int + f;
+        }
+        if let Some(e) = exp {
+            int = int * N::try_from(10).or(Err("a valid float"))?.pow(e);
+        }
+        if neg {
+            int = -int;
+        }
+        Ok(int)
+    })
 }
