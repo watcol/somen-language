@@ -3,8 +3,8 @@ use somen::prelude::*;
 
 use crate::Character;
 
-pub mod integer;
 pub mod float;
+pub mod integer;
 
 /// Takes a function returns a integer parser, returns a parser of signed integer.
 ///
@@ -47,7 +47,7 @@ where
 }
 
 /// Parses a digit with given radix.
-pub fn digit<'a, I, C>(radix: u32) -> impl Parser<I, Output = C> + 'a
+pub fn digit<'a, I, C>(radix: u8) -> impl Parser<I, Output = C> + 'a
 where
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
@@ -65,7 +65,7 @@ where
 }
 
 /// Parses a non-zero digit with given radix.
-pub fn non_zero_digit<'a, I, C>(radix: u32) -> impl Parser<I, Output = C> + 'a
+pub fn non_zero_digit<'a, I, C>(radix: u8) -> impl Parser<I, Output = C> + 'a
 where
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,

@@ -70,54 +70,55 @@ macro_rules! int_parser {
 }
 
 /// An integer with given radix which has no trailing zeros.
-pub fn integer<'a, N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N> + 'a
+pub fn integer<'a, N, I, C>(radix: u8, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
     integer_inner(
         (non_zero_digit(radix).once(), digit(radix).repeat(..))
             .or(is(|c: &C| c.is_zero()).expect("zero").once()),
+        N::zero(),
         radix,
         neg,
     )
+    .try_map(|x| x.map(|(n, _)| n).ok_or("a not too large number."))
 }
 
 /// An integer with given radix which allows trailing zeros.
-pub fn integer_trailing_zeros<'a, N, I, C>(radix: u32, neg: bool) -> impl Parser<I, Output = N> + 'a
+pub fn integer_trailing_zeros<'a, N, I, C>(radix: u8, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(digit(radix).repeat(1..), radix, neg)
+    integer_inner(digit(radix).repeat(1..), N::zero(), radix, neg)
+        .try_map(|x| x.map(|(n, _)| n).ok_or("a not too large number."))
 }
 
-fn integer_inner<'a, N, S, I, C>(
+pub(super) fn integer_inner<'a, N, S, I, C>(
     streamed: S,
-    radix: u32,
+    default: N,
+    radix: u8,
     neg: bool,
-) -> impl Parser<I, Output = N> + 'a
+) -> impl Parser<I, Output = Option<(N, u8)>> + 'a
 where
-    N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u32> + 'a,
+    N: CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     S: StreamedParser<I, Item = C> + 'a,
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    let integer = streamed.try_fold(value_fn(N::zero), move |acc, x| {
-        N::try_from(radix)
-            .ok()
-            .and_then(|ten| acc.checked_mul(&ten))
-            .zip(N::try_from(x.to_digit(radix)).ok().and_then(|x| {
-                if neg {
-                    x.checked_neg()
-                } else {
-                    Some(x)
-                }
-            }))
-            .and_then(|(a, x)| a.checked_add(&x))
-            .ok_or("a not too large number")
+    let integer = streamed.fold(value(Some((default, 0))), move |acc, x| {
+        let mut x = N::try_from(x.to_digit_unchecked(radix)).ok()?;
+        if neg {
+            x = x.checked_neg()?;
+        }
+        let (n, count) = acc?;
+        Some((
+            n.checked_mul(&N::try_from(radix).ok()?)?.checked_add(&x)?,
+            count + 1,
+        ))
     });
 
     #[cfg(feature = "alloc")]

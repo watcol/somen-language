@@ -33,7 +33,7 @@ where
         .try_fold::<_, _, &str>(value((N::zero(), 0)), |(acc, offset), digit: C| {
             Ok((
                 acc + N::try_from(10).or(Err("a valid float"))?.pow(offset - 1)
-                    * N::try_from(digit.to_digit(10) as u64).or(Err("a valid float"))?,
+                    * N::try_from(digit.to_digit_unchecked(10) as u64).or(Err("a valid float"))?,
                 offset - 1,
             ))
         })
