@@ -2,7 +2,7 @@
 use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, Zero};
 use somen::prelude::*;
 
-use super::{digit, non_zero_digit};
+use super::{digits, digits_trailing_zeros};
 use crate::Character;
 
 /// Generates a function returns a integer parser.
@@ -76,14 +76,7 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(
-        (non_zero_digit(radix).once(), digit(radix).repeat(..))
-            .or(is(|c: &C| c.is_zero()).expect("zero").once()),
-        N::zero(),
-        radix,
-        neg,
-    )
-    .try_map(|(acc, overflowed, _)| {
+    integer_inner(digits(radix), N::zero(), radix, neg).try_map(|(acc, _, overflowed)| {
         if overflowed {
             Err("a not too large number.")
         } else {
@@ -99,8 +92,8 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(digit(radix).repeat(1..), N::zero(), radix, neg).try_map(
-        |(acc, overflowed, _)| {
+    integer_inner(digits_trailing_zeros(radix), N::zero(), radix, neg).try_map(
+        |(acc, _, overflowed)| {
             if overflowed {
                 Err("a not too large number.")
             } else {
@@ -115,7 +108,7 @@ pub(super) fn integer_inner<'a, N, S, I, C>(
     default: N,
     radix: u8,
     neg: bool,
-) -> impl Parser<I, Output = (N, bool, u8)> + 'a
+) -> impl Parser<I, Output = (N, usize, bool)> + 'a
 where
     N: CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     S: StreamedParser<I, Item = C> + 'a,
@@ -124,10 +117,10 @@ where
 {
     let n_radix = N::try_from(radix).ok();
     let integer = streamed.fold(
-        value((default, n_radix.is_none(), 0)),
-        move |(acc, overflowed, count), x| {
+        value((default, 0, n_radix.is_none())),
+        move |(acc, count, overflowed), x| {
             if overflowed {
-                return (acc, true, count);
+                return (acc, count, true);
             }
             let res = acc
                 .checked_mul(n_radix.as_ref().unwrap())
@@ -140,8 +133,8 @@ where
                 }))
                 .and_then(|(acc, x)| acc.checked_add(&x));
             match res {
-                Some(x) => (x, false, count + 1),
-                None => (acc, true, count),
+                Some(x) => (x, count + 1, false),
+                None => (acc, count, true),
             }
         },
     );

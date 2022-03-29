@@ -17,17 +17,9 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    is(move |c: &C| c.is_minus() || (plus_sign && c.is_plus()))
-        .expect(if plus_sign {
-            "a plus or minus sign"
-        } else {
-            "a minus sign"
-        })
+    sign(plus_sign)
         .opt()
-        .then(move |sign: Option<C>| match sign {
-            Some(c) if c.is_minus() => parser(true),
-            _ => parser(false),
-        })
+        .then(move |sign| parser(sign.unwrap_or_default()))
         .expect("a signed number")
 }
 
@@ -79,5 +71,44 @@ where
     #[cfg(not(feature = "alloc"))]
     {
         digit.expect("a non-zero digit")
+    }
+}
+
+/// Parses digits with given radix.
+#[inline]
+pub fn digits<'a, I, C>(radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+where
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    (non_zero_digit(radix).once(), digit(radix).repeat(..))
+        .or(is(Character::is_zero).expect("zero").once())
+}
+
+/// Parses digits with given radix (trailing zeros are allowed).
+#[inline]
+pub fn digits_trailing_zeros<'a, I, C>(radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+where
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    digit(radix).repeat(1..)
+}
+
+/// Parses a plus or minus sign and returns `true` if it is a minus sign.
+///
+/// By the default, plus signs are not allowed and it will be allowed if the argument `plus_sign` is `true`.
+pub fn sign<'a, I, C>(plus_sign: bool) -> impl Parser<I, Output = bool> + 'a
+where
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    let minus = is(Character::is_minus).map(|_| true).expect("a minus sign");
+    if plus_sign {
+        minus
+            .or(is(Character::is_plus).map(|_| false).expect("a plus sign"))
+            .left()
+    } else {
+        minus.right()
     }
 }
