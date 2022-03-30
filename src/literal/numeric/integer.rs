@@ -7,8 +7,8 @@ use crate::Character;
 
 /// Generates a function returns a integer parser.
 ///
-/// This macro takes comma-separated list of patterns `prefix => radix` like `"0x" => 16`, and `_ => radix`
-/// in the last are interpreted as a fallback without prefix.
+/// This macro takes comma-separated list of patterns `prefix => radix` like `tag("0x") => 16`, and
+/// `_ => radix` in the last are interpreted as a fallback without prefix.
 ///
 /// # Examples
 /// ```
@@ -19,9 +19,9 @@ use crate::Character;
 ///
 /// let mut parser = signed::<i64, _, _, _, _>(
 ///     int_parser!{
-///         "0x" => 16,
-///         "0o" => 8,
-///         "0b" => 2,
+///         tag("0x") => 16,
+///         tag("0o") => 8,
+///         tag("0b") => 2,
 ///         _ => 10,
 ///     },
 ///     true,
@@ -56,11 +56,11 @@ use crate::Character;
 /// ```
 #[macro_export]
 macro_rules! int_parser {
-    ($($prefix:literal => $radix:expr,)* _ => $rad:expr $(,)?) => {
+    ($($prefix:expr => $radix:expr,)* _ => $rad:expr $(,)?) => {
         |neg: bool| somen::parser::choice((
             $(
                 somen::parser::combinator::Prefix::new(
-                    somen::parser::tag($prefix),
+                    $prefix,
                     $crate::literal::numeric::integer::integer_trailing_zeros($radix, neg),
                 ),
             )*
