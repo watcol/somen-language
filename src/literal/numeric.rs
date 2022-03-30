@@ -94,6 +94,16 @@ where
     digit(radix).repeat(1..)
 }
 
+/// Parses fixed-length digits with given radix.
+#[inline]
+pub fn digits_fixed<'a, I, C>(length: usize, radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+where
+    I: Positioned<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    digit(radix).times(length)
+}
+
 /// Parses a plus or minus sign and returns `true` if it is a minus sign.
 ///
 /// By the default, plus signs are not allowed and it will be allowed if the argument `plus_sign` is `true`.
