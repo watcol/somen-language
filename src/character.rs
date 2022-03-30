@@ -54,6 +54,9 @@ pub trait Character: Clone {
         }
     }
 
+    /// Checks if the character is a lower or upper case letter.
+    fn is_letter(&self) -> bool;
+
     /// Checks if the character is a digit with the radix, or not.
     ///
     /// # Panics
@@ -100,6 +103,11 @@ impl Character for char {
     #[inline]
     unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
         Expects::from(ExpectKind::Token(char::from_u32_unchecked(byte as u32)))
+    }
+
+    #[inline]
+    fn is_letter(&self) -> bool {
+        self.is_ascii_alphabetic()
     }
 
     #[inline]
