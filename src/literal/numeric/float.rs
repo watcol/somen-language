@@ -9,16 +9,31 @@ use crate::Character;
 
 /// A floating point number.
 ///
-/// Note that this function doesn't support infinities or `NaN`s, you must implement it by
-/// yourself.
-// TODO: Implement Eisel-Lemire algolithm.
+/// This parser requires an integer part, but a decimal part and an exponent are optional.
+/// If you want to apply different rules, you can implement it by yourself using [`compute_float`]
+/// helper function.
+///
+/// Also note that this function doesn't support infinities and NaNs.
+#[inline]
 pub fn float<'a, N, I, C>(neg: bool) -> impl Parser<I, Output = N> + 'a
 where
     N: Mul<N, Output = N> + Neg<Output = N> + Pow<i32, Output = N> + TryFrom<u64> + 'a,
     I: Input<Ok = C> + 'a,
     C: Character + 'a,
 {
-    float_inner().try_map(move |(mantissa, _, exponent, _)| {
+    compute_float(float_inner(), neg)
+}
+
+/// Takes an parser for floats which returns `(mantissa, exponent)`, compute a float with it.
+// TODO: Implement Eisel-Lemire algolithm.
+pub fn compute_float<'a, N, P, I, C>(parser: P, neg: bool) -> impl Parser<I, Output = N> + 'a
+where
+    N: Mul<N, Output = N> + Neg<Output = N> + Pow<i32, Output = N> + TryFrom<u64> + 'a,
+    P: Parser<I, Output = (u64, i32)> + 'a,
+    I: Input<Ok = C> + 'a,
+    C: Character + 'a,
+{
+    parser.try_map(move |(mantissa, exponent)| {
         N::try_from(mantissa)
             .ok()
             .zip(N::try_from(10).ok())
@@ -34,7 +49,7 @@ where
     })
 }
 
-fn float_inner<'a, I, C>() -> impl Parser<I, Output = (u64, bool, i32, bool)> + 'a
+fn float_inner<'a, I, C>() -> impl Parser<I, Output = (u64, i32)> + 'a
 where
     I: Input<Ok = C> + 'a,
     C: Character + 'a,
@@ -61,25 +76,18 @@ where
                 .or(value((0, 0, false))),
         )
         .map(
-            |((mantissa, count, man_overflowed), (exp, _, mut exp_overflowed))| {
-                let exp = if exp_overflowed {
-                    if exp < 0 {
-                        i32::MIN
-                    } else {
-                        i32::MAX
-                    }
-                } else {
-                    let res = exp.saturating_sub(count as i32);
-                    if res == i32::MIN {
-                        exp_overflowed = true;
-                    }
-                    res
-                };
+            |((mantissa, count, man_overflowed), (exp, _, exp_overflowed))| {
                 (
                     if man_overflowed { u64::MAX } else { mantissa },
-                    man_overflowed,
-                    exp,
-                    exp_overflowed,
+                    if exp_overflowed {
+                        if exp < 0 {
+                            i32::MIN
+                        } else {
+                            i32::MAX
+                        }
+                    } else {
+                        exp.saturating_sub(count as i32)
+                    },
                 )
             },
         )
