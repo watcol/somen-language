@@ -14,7 +14,7 @@ use crate::character::Character;
 /// ```
 /// # futures::executor::block_on(async {
 /// use somen::prelude::*;
-/// use somen_language::literal::numeric::signed;
+/// use somen_language::token::numeric::signed;
 /// use somen_language::int_parser;
 ///
 /// let mut parser = signed::<i64, _, _, _, _>(
@@ -61,10 +61,10 @@ macro_rules! int_parser {
             $(
                 somen::parser::combinator::Prefix::new(
                     $prefix,
-                    $crate::literal::numeric::integer::integer_trailing_zeros($radix, neg),
+                    $crate::token::numeric::integer::integer_trailing_zeros($radix, neg),
                 ),
             )*
-            $crate::literal::numeric::integer::integer($rad, neg),
+            $crate::token::numeric::integer::integer($rad, neg),
         ))
     };
 }

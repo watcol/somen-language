@@ -7,4 +7,4 @@
 extern crate alloc;
 
 pub mod character;
-pub mod literal;
+pub mod token;
