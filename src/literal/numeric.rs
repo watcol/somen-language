@@ -48,7 +48,7 @@ where
 
     #[cfg(feature = "alloc")]
     {
-        digit.expect(format!("a digit with radix {radix}"))
+        digit.expect(alloc::format!("a digit with radix {radix}"))
     }
     #[cfg(not(feature = "alloc"))]
     {
@@ -66,7 +66,7 @@ where
 
     #[cfg(feature = "alloc")]
     {
-        digit.expect(format!("a non-zero digit with radix {radix}"))
+        digit.expect(alloc::format!("a non-zero digit with radix {radix}"))
     }
     #[cfg(not(feature = "alloc"))]
     {

@@ -141,10 +141,10 @@ where
 
     #[cfg(feature = "alloc")]
     {
-        integer.expect(format!("an integer with radix {radix}"))
+        integer.expect(alloc::format!("an integer with radix {radix}"))
     }
     #[cfg(not(feature = "alloc"))]
     {
-        digit.expect("an integer")
+        integer.expect("an integer")
     }
 }
