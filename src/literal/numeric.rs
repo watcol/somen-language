@@ -10,9 +10,9 @@ pub mod integer;
 ///
 /// The taken function must return negative result if the argument is `true`, and vice versa.
 /// If `plus_sign` is `true`, it allows plus signs besides minus signs, has no effects.
-pub fn signed<'a, N, F, P, I, C>(parser: F, plus_sign: bool) -> impl Parser<I, Output = N> + 'a
+pub fn signed<'a, N, F, P, I, C>(mut parser: F, plus_sign: bool) -> impl Parser<I, Output = N> + 'a
 where
-    F: Fn(bool) -> P + 'a,
+    F: FnMut(bool) -> P + 'a,
     P: Parser<I, Output = N> + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
@@ -30,7 +30,7 @@ where
 #[inline]
 pub fn unsigned<'a, N, F, P, I, C>(parser: F) -> impl Parser<I, Output = N> + 'a
 where
-    F: Fn(bool) -> P,
+    F: FnOnce(bool) -> P,
     P: Parser<I, Output = N> + 'a,
     I: Positioned<Ok = C> + ?Sized,
     C: Character,
