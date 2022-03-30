@@ -1,7 +1,7 @@
 //! Parsers for numeric literals.
 use somen::prelude::*;
 
-use crate::Character;
+use crate::character::{character, Character};
 
 pub mod float;
 pub mod integer;
@@ -62,7 +62,7 @@ where
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    let digit = is(move |c: &C| c.is_digit(radix) && !c.is_zero());
+    let digit = is(move |c: &C| c.is_digit(radix) && !c.eq_byte(b'0'));
 
     #[cfg(feature = "alloc")]
     {
@@ -81,8 +81,7 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    (non_zero_digit(radix).once(), digit(radix).repeat(..))
-        .or(is(Character::is_zero).expect("zero").once())
+    (non_zero_digit(radix).once(), digit(radix).repeat(..)).or(character(b'0').once())
 }
 
 /// Parses digits with given radix (trailing zeros are allowed).
@@ -103,11 +102,9 @@ where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    let minus = is(Character::is_minus).map(|_| true).expect("a minus sign");
+    let minus = character(b'-').map(|_| true);
     if plus_sign {
-        minus
-            .or(is(Character::is_plus).map(|_| false).expect("a plus sign"))
-            .left()
+        minus.or(character(b'+').map(|_| false)).left()
     } else {
         minus.right()
     }

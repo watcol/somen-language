@@ -3,7 +3,7 @@ use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, Zero};
 use somen::prelude::*;
 
 use super::{digits, digits_trailing_zeros};
-use crate::Character;
+use crate::character::Character;
 
 /// Generates a function returns a integer parser.
 ///
@@ -130,13 +130,11 @@ where
             }
             let res = acc
                 .checked_mul(n_radix.as_ref().unwrap())
-                .zip(N::try_from(x.to_digit_unchecked(radix)).ok().and_then(|x| {
-                    if neg {
-                        x.checked_neg()
-                    } else {
-                        Some(x)
-                    }
-                }))
+                .zip(
+                    x.to_digit(radix)
+                        .and_then(|d| N::try_from(d).ok())
+                        .and_then(|x| if neg { x.checked_neg() } else { Some(x) }),
+                )
                 .and_then(|(acc, x)| acc.checked_add(&x));
             match res {
                 Some(x) => (x, count + 1, false),

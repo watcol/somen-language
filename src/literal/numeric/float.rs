@@ -5,7 +5,7 @@ use somen::prelude::*;
 
 use super::integer::fold_digits;
 use super::{digits, digits_trailing_zeros, signed};
-use crate::Character;
+use crate::character::{character, Character};
 
 /// A floating point number.
 ///
@@ -59,16 +59,15 @@ where
             if overflowed {
                 value((int, 0, true)).left()
             } else {
-                is(Character::is_point)
-                    .expect("a decimal point")
+                character(b'.')
                     .prefix(fold_digits(digits_trailing_zeros(10), int, 10, false))
                     .or(value((int, 0, false)))
                     .right()
             }
         })
         .and(
-            is(Character::is_exp)
-                .expect("a exponent mark")
+            character(b'e')
+                .or(character(b'E'))
                 .prefix(signed(
                     |neg| fold_digits(digits_trailing_zeros(10), 0i32, 10, neg),
                     true,

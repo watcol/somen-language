@@ -1,19 +1,55 @@
+//! Abstractions for characters. (`char`, `u8`, ...)
+use alloc::string::ToString;
+use somen::error::{ExpectKind, Expects};
+use somen::prelude::*;
+
+/// A parser for characters.
+///
+/// # Panics
+/// if `byte` is not an ascii character.
+#[inline]
+pub fn character<'a, I, C>(byte: u8) -> impl Parser<I, Output = C> + 'a
+where
+    I: Positioned<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    assert!(byte.is_ascii());
+    is(move |c: &C| c.eq_byte(byte)).expect(unsafe { C::byte_to_expect_unchecked(byte) })
+}
+
 /// A trait for characters.
 pub trait Character: Clone {
-    /// Checks if the character is zero (`0`) or not.
-    fn is_zero(&self) -> bool;
+    /// Checks if the character equals to an ascii `byte` (in range of `0x00..=0x7F`).
+    fn eq_byte(&self, byte: u8) -> bool;
 
-    /// Checks if the character is a decimal point (`.`) or not.
-    fn is_point(&self) -> bool;
+    /// An unsafe version of [`byte_to_expect`]
+    ///
+    /// [`byte_to_expect`]: Self::byte_to_expect
+    #[inline]
+    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
+        assert!(byte.is_ascii());
+        #[cfg(feature = "alloc")]
+        {
+            Expects::from(ExpectKind::Owned(
+                char::from_u32_unchecked(byte as u32).to_string(),
+            ))
+        }
+        #[cfg(not(feature = "alloc"))]
+        {
+            Expects::from(ExpectKind::Static("a byte"))
+        }
+    }
 
-    /// Checks if the character is a exponent mark (`e`/`E`) or not.
-    fn is_exp(&self) -> bool;
-
-    /// Checks if the character is plus sign (`+`) or not.
-    fn is_plus(&self) -> bool;
-
-    /// Checks if the character is minus sign (`-`) or not.
-    fn is_minus(&self) -> bool;
+    /// Converts a byte to an [`Expects`], the error specifier of the somen parser combinator.
+    ///
+    /// This function returns [`None`] if `byte` is not an ascii character.
+    fn byte_to_expect(byte: u8) -> Option<Expects<Self>> {
+        if byte.is_ascii() {
+            Some(unsafe { Self::byte_to_expect_unchecked(byte) })
+        } else {
+            None
+        }
+    }
 
     /// Checks if the character is a digit with the radix, or not.
     ///
@@ -21,22 +57,26 @@ pub trait Character: Clone {
     /// if `radix` is not in range of 2 to 36.
     fn is_digit(&self, radix: u8) -> bool;
 
-    /// Converts the character satisfies [`is_digit`] into an integer value.
+    /// An unsafe version of [`to_digit`].
     ///
-    /// # Panics
-    /// if `radix` is not in range of 2 to 36, or the character not satisfies [`is_digit`].
+    /// Either this or [`to_digit`] must be implemented.
     ///
     /// [`is_digit`]: Self::is_digit
-    fn to_digit_unchecked(&self, radix: u8) -> u8;
+    #[inline]
+    unsafe fn to_digit_unchecked(&self, radix: u8) -> u8 {
+        self.to_digit(radix).unwrap_unchecked()
+    }
 
     /// Converts the character into an integer value or return [`None`] if this is not a digit.
+    ///
+    /// Either this or [`to_digit_unchecked`] must be implemented.
     ///
     /// # Panics
     /// if `radix` is not in range of 2 to 36.
     #[inline]
     fn to_digit(&self, radix: u8) -> Option<u8> {
         if self.is_digit(radix) {
-            Some(self.to_digit_unchecked(radix))
+            Some(unsafe { self.to_digit_unchecked(radix) })
         } else {
             None
         }
@@ -45,38 +85,18 @@ pub trait Character: Clone {
 
 impl Character for char {
     #[inline]
-    fn is_zero(&self) -> bool {
-        *self == '0'
+    fn eq_byte(&self, byte: u8) -> bool {
+        *self as u32 == byte as u32
     }
 
     #[inline]
-    fn is_point(&self) -> bool {
-        *self == '.'
-    }
-
-    #[inline]
-    fn is_exp(&self) -> bool {
-        *self == 'e' || *self == 'E'
-    }
-
-    #[inline]
-    fn is_plus(&self) -> bool {
-        *self == '+'
-    }
-
-    #[inline]
-    fn is_minus(&self) -> bool {
-        *self == '-'
+    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
+        Expects::from(ExpectKind::Token(char::from_u32_unchecked(byte as u32)))
     }
 
     #[inline]
     fn is_digit(&self, radix: u8) -> bool {
         Self::is_digit(*self, radix as u32)
-    }
-
-    #[inline]
-    fn to_digit_unchecked(&self, radix: u8) -> u8 {
-        Self::to_digit(*self, radix as u32).unwrap() as u8
     }
 
     #[inline]
