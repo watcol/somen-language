@@ -24,6 +24,9 @@ pub trait Character: Clone {
 
     /// An unsafe version of [`byte_to_expect`]
     ///
+    /// # Safety
+    /// Calling this method on `!byte.is_ascii()` is undefined behavior.
+    ///
     /// [`byte_to_expect`]: Self::byte_to_expect
     #[inline]
     unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
@@ -61,7 +64,10 @@ pub trait Character: Clone {
     ///
     /// Either this or [`to_digit`] must be implemented.
     ///
-    /// [`is_digit`]: Self::is_digit
+    /// # Safety
+    /// Calling this method on `!self.is_digit(radix)` is undefined behavior.
+    ///
+    /// [`to_digit`]: Self::to_digit
     #[inline]
     unsafe fn to_digit_unchecked(&self, radix: u8) -> u8 {
         self.to_digit(radix).unwrap_unchecked()
@@ -73,6 +79,8 @@ pub trait Character: Clone {
     ///
     /// # Panics
     /// if `radix` is not in range of 2 to 36.
+    ///
+    /// [`to_digit_unchecked`]: Self::to_digit_unchecked
     #[inline]
     fn to_digit(&self, radix: u8) -> Option<u8> {
         if self.is_digit(radix) {
