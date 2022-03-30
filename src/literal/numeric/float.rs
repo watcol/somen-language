@@ -3,7 +3,7 @@ use core::ops::{Mul, Neg};
 use num_traits::Pow;
 use somen::prelude::*;
 
-use super::integer::integer_inner;
+use super::integer::fold_digits;
 use super::{digits, digits_trailing_zeros, signed};
 use crate::Character;
 
@@ -39,14 +39,14 @@ where
     I: Input<Ok = C> + 'a,
     C: Character + 'a,
 {
-    integer_inner::<u64, _, _, _>(digits(10), 0, 10, false)
+    fold_digits::<u64, _, _, _>(digits(10), 0, 10, false)
         .then(|(int, _, overflowed)| {
             if overflowed {
                 value((int, 0, true)).left()
             } else {
                 is(Character::is_point)
                     .expect("a decimal point")
-                    .prefix(integer_inner(digits_trailing_zeros(10), int, 10, false))
+                    .prefix(fold_digits(digits_trailing_zeros(10), int, 10, false))
                     .or(value((int, 0, false)))
                     .right()
             }
@@ -55,7 +55,7 @@ where
             is(Character::is_exp)
                 .expect("a exponent mark")
                 .prefix(signed(
-                    |neg| integer_inner(digits_trailing_zeros(10), 0i32, 10, neg),
+                    |neg| fold_digits(digits_trailing_zeros(10), 0i32, 10, neg),
                     true,
                 ))
                 .or(value((0, 0, false))),

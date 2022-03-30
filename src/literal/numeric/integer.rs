@@ -70,13 +70,14 @@ macro_rules! int_parser {
 }
 
 /// An integer with given radix which has no trailing zeros.
+#[inline]
 pub fn integer<'a, N, I, C>(radix: u8, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
     N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(digits(radix), N::zero(), radix, neg).try_map(|(acc, _, overflowed)| {
+    fold_digits(digits(radix), N::zero(), radix, neg).try_map(|(acc, _, overflowed)| {
         if overflowed {
             Err("a not too large number.")
         } else {
@@ -86,13 +87,14 @@ where
 }
 
 /// An integer with given radix which allows trailing zeros.
+#[inline]
 pub fn integer_trailing_zeros<'a, N, I, C>(radix: u8, neg: bool) -> impl Parser<I, Output = N> + 'a
 where
     N: Zero + CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    integer_inner(digits_trailing_zeros(radix), N::zero(), radix, neg).try_map(
+    fold_digits(digits_trailing_zeros(radix), N::zero(), radix, neg).try_map(
         |(acc, _, overflowed)| {
             if overflowed {
                 Err("a not too large number.")
@@ -103,9 +105,13 @@ where
     )
 }
 
-pub(super) fn integer_inner<'a, N, S, I, C>(
+/// Takes a streamed parser of digits, folds it to an `acc` as following digits.
+///
+/// The output value consists of a folded result of `acc`, a number of folded digits and the last
+/// item will be `true` is the number has overflowed.
+pub fn fold_digits<'a, N, S, I, C>(
     streamed: S,
-    default: N,
+    acc: N,
     radix: u8,
     neg: bool,
 ) -> impl Parser<I, Output = (N, usize, bool)> + 'a
@@ -117,7 +123,7 @@ where
 {
     let n_radix = N::try_from(radix).ok();
     let integer = streamed.fold(
-        value((default, 0, n_radix.is_none())),
+        value((acc, 0, n_radix.is_none())),
         move |(acc, count, overflowed), x| {
             if overflowed {
                 return (acc, count, true);
