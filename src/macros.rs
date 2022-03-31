@@ -9,10 +9,10 @@ macro_rules! int_parser {
             $(
                 somen::parser::combinator::Prefix::new(
                     $prefix,
-                    $crate::token::numeric::integer::integer_trailing_zeros($radix, neg),
+                    $crate::numeric::integer::integer_trailing_zeros($radix, neg),
                 ),
             )*
-            $crate::token::numeric::integer::integer($rad, neg),
+            $crate::numeric::integer::integer($rad, neg),
         ))
     };
 }
@@ -22,8 +22,11 @@ macro_rules! int_parser {
 /// This macro is very like [`token`], but fields of variants are disallowed.
 #[macro_export]
 macro_rules! symbol {
-    ($(#[$attrs:meta])* $vis:vis enum $name:ident $(: $src:ty)? {
-        $($var:ident = $token:expr),+ $(,)?
+    ($(#[$attrs:meta])* $vis:vis enum $name:ident : $src:ty {
+        $(
+            $(#[parser = $parser:ident])?
+            $var:ident = $token:expr
+        ),+ $(,)?
     }) => {
         $(#[$attrs])*
         $vis enum $name {
@@ -31,10 +34,24 @@ macro_rules! symbol {
         }
 
         impl $name {
+            $($(
+                #[allow(dead_code)]
+                #[inline]
+                pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
+                where
+                    I: Input<Ok=$src> + ?Sized + 'a,
+                {
+                    somen::parser::wrapper::Map::new(
+                        $token,
+                        |_| $name::$var
+                    )
+                }
+            )?)+
+
             #[allow(dead_code)]
             pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
             where
-                I: Input$(<Ok=$src>)? + ?Sized + 'a,
+                I: Input<Ok=$src> + ?Sized + 'a,
             {
                 somen::parser::choice((
                     $(
@@ -57,8 +74,12 @@ macro_rules! symbol {
 /// outputs, use the macro [`symbol`] which has no fields for variants.
 #[macro_export]
 macro_rules! token {
-    ($(#[$attrs:meta])* $vis:vis enum $name:ident $(: $src:ty)? {
-        $($var:ident $field:tt = $token:expr),+ $(,)?
+    ($(#[$attrs:meta])* $vis:vis enum $name:ident : $src:ty {
+        $(
+            $(#[atomic = $atomic:ident])?
+            $(#[parser = $parser:ident])?
+            $var:ident $field:tt = $token:expr
+        ),+ $(,)?
     }) => {
         $(#[$attrs])*
         $vis enum $name {
@@ -66,16 +87,46 @@ macro_rules! token {
         }
 
         impl $name {
+            $($(
+                #[allow(dead_code)]
+                #[inline]
+                pub fn $atomic<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
+                where
+                    I: Positioned<Ok=$name> + ?Sized + 'a,
+                {
+                    somen::parser::wrapper::Expect::new(
+                        somen::parser::is(|c: &$name| matches!(
+                            c, $crate::__token_inner!{ @pattern $name $var; $field }
+                        )),
+                        stringify!($atomic).into(),
+                    )
+                }
+            )?)+
+
+            $($(
+                #[allow(dead_code)]
+                #[inline]
+                pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
+                where
+                    I: Input<Ok=$src> + ?Sized + 'a,
+                {
+                    somen::parser::wrapper::Map::new(
+                        $token,
+                        $crate::__token_inner!{ @closure $name $var; $field },
+                    )
+                }
+            )?)+
+
             #[allow(dead_code)]
             pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
             where
-                I: Input$(<Ok=$src>)? + ?Sized + 'a,
+                I: Input<Ok=$src> + ?Sized + 'a,
             {
                 somen::parser::choice((
                     $(
                         somen::parser::wrapper::Map::new(
                             $token,
-                            $crate::__token_inner!($name $var; $field)
+                            $crate::__token_inner!{@closure $name $var; $field },
                         ),
                     )+
                 ))
@@ -87,16 +138,28 @@ macro_rules! token {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __token_inner {
-    ($name:ident $var:ident; ()) => {
+    (@pattern $name:ident $var:ident; ()) => {
+        $name::$var()
+    };
+    (@pattern $name:ident $var:ident; {}) => {
+        $name::$var {}
+    };
+    (@pattern $name:ident $var:ident; ($inner:ty)) => {
+        $name::$var(_)
+    };
+    (@pattern $name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
+        $name::$var { .. }
+    };
+    (@closure $name:ident $var:ident; ()) => {
         |_| $name::$var()
     };
-    ($name:ident $var:ident; {}) => {
+    (@closure $name:ident $var:ident; {}) => {
         |_| $name::$var {}
     };
-    ($name:ident $var:ident; ($inner:ty)) => {
+    (@closure $name:ident $var:ident; ($inner:ty)) => {
         |inner| $name::$var(inner)
     };
-    ($name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
+    (@closure $name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
         |($($field,)+)| $name::$var { $($field,)+ }
-    }
+    };
 }
