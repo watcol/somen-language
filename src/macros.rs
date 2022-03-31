@@ -96,7 +96,7 @@ macro_rules! token {
                 {
                     somen::parser::wrapper::Expect::new(
                         somen::parser::is(|c: &$name| matches!(
-                            c, $crate::__token_inner!{ @pattern $name $var; $field }
+                            c, $crate::__token_inner!{ @pattern [$name::$var]; $field }
                         )),
                         stringify!($atomic).into(),
                     )
@@ -112,7 +112,7 @@ macro_rules! token {
                 {
                     somen::parser::wrapper::Map::new(
                         $token,
-                        $crate::__token_inner!{ @closure $name $var; $field },
+                        $crate::__token_inner!{ @closure [$name::$var]; $field },
                     )
                 }
             )?)+
@@ -126,7 +126,7 @@ macro_rules! token {
                     $(
                         somen::parser::wrapper::Map::new(
                             $token,
-                            $crate::__token_inner!{@closure $name $var; $field },
+                            $crate::__token_inner!{@closure [$name::$var]; $field },
                         ),
                     )+
                 ))
@@ -138,28 +138,28 @@ macro_rules! token {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __token_inner {
-    (@pattern $name:ident $var:ident; ()) => {
-        $name::$var()
+    (@pattern [$($name:tt)*]; ()) => {
+        $($name)* ()
     };
-    (@pattern $name:ident $var:ident; {}) => {
-        $name::$var {}
+    (@pattern [$($name:tt)*]; {}) => {
+        $($name)* {}
     };
-    (@pattern $name:ident $var:ident; ($inner:ty)) => {
-        $name::$var(_)
+    (@pattern [$($name:tt)*]; ($inner: ty)) => {
+        $($name)* (_)
     };
-    (@pattern $name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
-        $name::$var { .. }
+    (@pattern [$($name:tt)*]; { $($field:ident : $ty:ty),+ $(,)? }) => {
+        $($name)* { .. }
     };
-    (@closure $name:ident $var:ident; ()) => {
-        |_| $name::$var()
+    (@closure [$($name:tt)*]; ()) => {
+        |_| $($name)* ()
     };
-    (@closure $name:ident $var:ident; {}) => {
-        |_| $name::$var {}
+    (@closure [$($name:tt)*]; {}) => {
+        |_| $($name)* {}
     };
-    (@closure $name:ident $var:ident; ($inner:ty)) => {
-        |inner| $name::$var(inner)
+    (@closure [$($name:tt)*]; ($inner: ty)) => {
+        |inner| $($name)* (inner)
     };
-    (@closure $name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
-        |($($field,)+)| $name::$var { $($field,)+ }
+    (@closure [$($name:tt)*]; { $($field:ident : $ty:ty),+ $(,)? }) => {
+        |($($field,)+)|$($name)* { $($field,)+ }
     };
 }
