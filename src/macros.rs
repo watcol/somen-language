@@ -23,11 +23,11 @@ macro_rules! int_parser {
 #[macro_export]
 macro_rules! symbol {
     ($(#[$attrs:meta])* $vis:vis enum $name:ident $(: $src:ty)? {
-        $($var:ident $field:tt = $token:expr),+ $(,)?
+        $($var:ident = $token:expr),+ $(,)?
     }) => {
         $(#[$attrs])*
         $vis enum $name {
-            $($var $field,)+
+            $($var,)+
         }
 
         impl $name {
