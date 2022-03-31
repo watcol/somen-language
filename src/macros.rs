@@ -87,13 +87,16 @@ macro_rules! token {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __token_inner {
-    ($name:ident $var:ident;()) => {
+    ($name:ident $var:ident; ()) => {
         |_| $name::$var()
+    };
+    ($name:ident $var:ident; {}) => {
+        |_| $name::$var {}
     };
     ($name:ident $var:ident; ($inner:ty)) => {
         |inner| $name::$var(inner)
     };
-    ($name:ident $var:ident; { $($field:ident : $ty:ty),* $(,)? }) => {
-        |($($field,)*)| $name::$var { $($field,)* }
+    ($name:ident $var:ident; { $($field:ident : $ty:ty),+ $(,)? }) => {
+        |($($field,)+)| $name::$var { $($field,)+ }
     }
 }
