@@ -17,105 +17,29 @@ macro_rules! int_parser {
     };
 }
 
-/// Generate enums represents symbols.
-///
-/// This macro is very like [`token`], but fields of variants are disallowed.
-#[macro_export]
-macro_rules! symbol {
-    ($(#[$attrs:meta])* $vis:vis enum $name:ident : $src:ty {
-        $(
-            $(#[parser = $parser:ident])?
-            $var:ident = $token:expr
-        ),+ $(,)?
-    }) => {
-        $(#[$attrs])*
-        $vis enum $name {
-            $($var,)+
-        }
-
-        impl $name {
-            $($(
-                #[allow(dead_code)]
-                #[inline]
-                pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
-                where
-                    I: Input<Ok=$src> + ?Sized + 'a,
-                {
-                    somen::parser::wrapper::Map::new(
-                        $token,
-                        |_| $name::$var
-                    )
-                }
-            )?)+
-
-            #[allow(dead_code)]
-            pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
-            where
-                I: Input<Ok=$src> + ?Sized + 'a,
-            {
-                somen::parser::choice((
-                    $(
-                        somen::parser::wrapper::Map::new(
-                            $token,
-                            |_| $name::$var
-                        ),
-                    )+
-                ))
-            }
-        }
-    }
-}
-
 /// Generate enums represents tokens or syntax trees.
 ///
-/// In this macro, each variants must be formed `Variant()`, `Variant {}` (both ignores parser outputs),
-/// `Variant(Type)` (parser outputs should be typed as `Type`) or `Variant { foo: Foo, bar: Bar }`
-/// (parser outputs should be typed as `(Foo, Bar, ...)`). For parser of symbols which requires no
-/// outputs, use the macro [`symbol`] which has no fields for variants.
+/// In this macro, each variants must be formed `Self::Variant` or `Self::Variant(Type)` and if a
+/// parameter exists, the parser output type should be `Type`.
 #[macro_export]
 macro_rules! token {
     ($(#[$attrs:meta])* $vis:vis enum $name:ident : $src:ty {
         $(
             $(#[atomic = $atomic:ident])?
             $(#[parser = $parser:ident])?
-            $var:ident $field:tt = $token:expr
+            $var:ident $(($field:ty))? = $token:expr
         ),+ $(,)?
     }) => {
         $(#[$attrs])*
         $vis enum $name {
-            $($var $field,)+
+            $($var $(($field))?,)+
         }
 
         impl $name {
-            $($(
-                #[allow(dead_code)]
-                #[inline]
-                pub fn $atomic<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
-                where
-                    I: Positioned<Ok=$name> + ?Sized + 'a,
-                {
-                    somen::parser::wrapper::Expect::new(
-                        somen::parser::is(|c: &$name| matches!(
-                            c, $crate::__token_inner!{ @pattern [$name::$var]; $field }
-                        )),
-                        stringify!($atomic).into(),
-                    )
-                }
-            )?)+
-
-            $($(
-                #[allow(dead_code)]
-                #[inline]
-                pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
-                where
-                    I: Input<Ok=$src> + ?Sized + 'a,
-                {
-                    somen::parser::wrapper::Map::new(
-                        $token,
-                        $crate::__token_inner!{ @closure [$name::$var]; $field },
-                    )
-                }
-            )?)+
+            $(
+                $crate::__token_inner! { @atomic [$name] [$var] [$($field)?]; $($atomic)? }
+                $crate::__token_inner! { @parser [$name] [$var] [$($field)?] [$src] [$token]; $($parser)? }
+             )+
 
             #[allow(dead_code)]
             pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
@@ -126,40 +50,64 @@ macro_rules! token {
                     $(
                         somen::parser::wrapper::Map::new(
                             $token,
-                            $crate::__token_inner!{@closure [$name::$var]; $field },
+                            $crate::__token_inner!{@closure [$name] [$var]; $($field)? },
                         ),
                     )+
                 ))
             }
         }
-    }
+    };
 }
 
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __token_inner {
-    (@pattern [$($name:tt)*]; ()) => {
-        $($name)* ()
+    (@atomic [$name:ident] [$var:ident] [$($field:ty)?];) => {};
+    (@atomic [$name:ident] [$var:ident] [$($field:ty)?]; $atomic:ident) => {
+        #[allow(dead_code)]
+        #[inline]
+        pub fn $atomic<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a
+        where
+            I: Positioned<Ok=$name> + ?Sized + 'a,
+        {
+            somen::parser::wrapper::Expect::new(
+                somen::parser::is_some(|c|
+                    $crate::__token_inner! { @match c [$name] [$var]; $($field)? }
+                ),
+                stringify!($atomic).into(),
+            )
+        }
     };
-    (@pattern [$($name:tt)*]; {}) => {
-        $($name)* {}
+    (@parser [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr];) => {};
+    (@parser [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr]; $parser:ident) => {
+        #[allow(dead_code)]
+        #[inline]
+        pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
+        where
+            I: Input<Ok=$src> + ?Sized + 'a,
+        {
+            somen::parser::wrapper::Map::new(
+                $token,
+                $crate::__token_inner! { @closure [$name] [$var]; $($field)? },
+            )
+        }
     };
-    (@pattern [$($name:tt)*]; ($inner: ty)) => {
-        $($name)* (_)
+    (@match $c:ident [$name:ident] [$var:ident];) => {
+        match $c {
+            $name::$var => Some(()),
+            _ => None,
+        }
     };
-    (@pattern [$($name:tt)*]; { $($field:ident : $ty:ty),+ $(,)? }) => {
-        $($name)* { .. }
+    (@match $c:ident [$name:ident] [$var:ident]; $field:ty) => {
+        match $c {
+            $name::$var(ref inner) => Some(inner.clone()),
+            _ => None,
+        }
     };
-    (@closure [$($name:tt)*]; ()) => {
-        |_| $($name)* ()
+    (@closure [$name:ident] [$var:ident];) => {
+        |_| $name::$var
     };
-    (@closure [$($name:tt)*]; {}) => {
-        |_| $($name)* {}
-    };
-    (@closure [$($name:tt)*]; ($inner: ty)) => {
-        |inner| $($name)* (inner)
-    };
-    (@closure [$($name:tt)*]; { $($field:ident : $ty:ty),+ $(,)? }) => {
-        |($($field,)+)|$($name)* { $($field,)+ }
+    (@closure [$name:ident] [$var:ident]; $field:ty) => {
+        |inner| $name::$var(inner)
     };
 }
