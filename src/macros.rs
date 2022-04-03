@@ -25,8 +25,7 @@ macro_rules! int_parser {
 macro_rules! token {
     ($(#[$attrs:meta])* $vis:vis enum $name:ident : $src:ty {
         $(
-            $(#[atomic = $atomic:ident])?
-            $(#[parser = $parser:ident])?
+            $(#[token($($key:ident = $value:ident),* $(,)?)])?
             $var:ident $(($field:ty))? = $token:expr
         ),+ $(,)?
     }) => {
@@ -36,11 +35,6 @@ macro_rules! token {
         }
 
         impl $name {
-            $(
-                $crate::__token_inner! { @atomic [$name] [$var] [$($field)?]; $($atomic)? }
-                $crate::__token_inner! { @parser [$name] [$var] [$($field)?] [$src] [$token]; $($parser)? }
-             )+
-
             #[allow(dead_code)]
             pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
             where
@@ -55,6 +49,13 @@ macro_rules! token {
                     )+
                 ))
             }
+
+            $(
+                $crate::__token_inner! {
+                    @method [$name] [$var] [$($field)?] [$src] [$token];
+                    $($([$key = $value])*)?
+                }
+             )+
         }
     };
 }
@@ -62,11 +63,12 @@ macro_rules! token {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __token_inner {
-    (@atomic [$name:ident] [$var:ident] [$($field:ty)?];) => {};
-    (@atomic [$name:ident] [$var:ident] [$($field:ty)?]; $atomic:ident) => {
+    (@method [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr];) => {};
+    (@method [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr];
+        [match = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $atomic<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a
+        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a
         where
             I: Positioned<Ok=$name> + ?Sized + 'a,
         {
@@ -74,15 +76,43 @@ macro_rules! __token_inner {
                 somen::parser::is_some(|c|
                     $crate::__token_inner! { @match c [$name] [$var]; $($field)? }
                 ),
-                stringify!($atomic).into(),
+                stringify!($fname).into(),
             )
         }
+
+        $crate::__token_inner! { @method [$name] [$var] [$($field)?] [$src] [$token]; $([$k = $v])* }
     };
-    (@parser [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr];) => {};
-    (@parser [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr]; $parser:ident) => {
+    (@method [$name:ident] [$var:ident] [$field:ty] [$src:ty] [$token:expr];
+        [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
+        pub fn $fname<'a, I, T>(inner: T) -> impl somen::parser::Parser<I, Output = $field> + 'a
+        where
+            I: Positioned<Ok=$name> + ?Sized + 'a,
+            T: PartialEq<$field> + 'a,
+        {
+            somen::parser::wrapper::Expect::new(
+                somen::parser::is_some(move |c| match c {
+                    $name::$var(val) if inner == val => Some(val),
+                    _ => None,
+                }),
+                stringify!($fname).into(),
+            )
+        }
+
+        $crate::__token_inner! { @method [$name] [$var] [$field] [$src] [$token]; $([$k = $v])* }
+    };
+    (@method [$name:ident] [$var:ident] [] [$src:ty] [$token:expr];
+        [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
+        compile_error!("`match_arg` is not supported for variants without fields.");
+
+        $crate::__token_inner! { @method [$name] [$var] [] [$src] [$token]; $([$k = $v])* }
+    };
+    (@method [$name:ident] [$var:ident] [$($field:ty)?] [$src:ty] [$token:expr];
+        [single = $fname:ident]$([$k:ident = $v:ident])*) => {
+        #[allow(dead_code)]
+        #[inline]
+        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = $name> + 'a
         where
             I: Input<Ok=$src> + ?Sized + 'a,
         {
@@ -91,6 +121,8 @@ macro_rules! __token_inner {
                 $crate::__token_inner! { @closure [$name] [$var]; $($field)? },
             )
         }
+
+        $crate::__token_inner! { @method [$name] [$var] [$($field)?] [$src] [$token]; $([$k = $v])* }
     };
     (@match $c:ident [$name:ident] [$var:ident];) => {
         match $c {
@@ -108,6 +140,6 @@ macro_rules! __token_inner {
         |_| $name::$var
     };
     (@closure [$name:ident] [$var:ident]; $field:ty) => {
-        |inner| $name::$var(inner)
+        $name::$var
     };
 }
