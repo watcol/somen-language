@@ -100,7 +100,7 @@ macro_rules! __token_inner {
     };
     (@match $c:ident [$name:ident] [$var:ident]; $field:ty) => {
         match $c {
-            $name::$var(ref inner) => Some(inner.clone()),
+            $name::$var(inner) => Some(inner),
             _ => None,
         }
     };
