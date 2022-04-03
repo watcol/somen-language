@@ -95,7 +95,7 @@ pub fn fold_digits<'a, N, S, I, C>(
 ) -> impl Parser<I, Output = (N, usize, bool)> + 'a
 where
     N: CheckedMul + CheckedAdd + CheckedNeg + TryFrom<u8> + Clone + 'a,
-    S: StreamedParser<I, Item = C> + 'a,
+    S: IterableParser<I, Item = C> + 'a,
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {

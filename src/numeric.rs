@@ -76,7 +76,7 @@ where
 
 /// Parses digits with given radix.
 #[inline]
-pub fn digits<'a, I, C>(radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+pub fn digits<'a, I, C>(radix: u8) -> impl IterableParser<I, Item = C> + 'a
 where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
@@ -86,7 +86,7 @@ where
 
 /// Parses digits with given radix (trailing zeros are allowed).
 #[inline]
-pub fn digits_trailing_zeros<'a, I, C>(radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+pub fn digits_trailing_zeros<'a, I, C>(radix: u8) -> impl IterableParser<I, Item = C> + 'a
 where
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
@@ -96,7 +96,7 @@ where
 
 /// Parses fixed-length digits with given radix.
 #[inline]
-pub fn digits_fixed<'a, I, C>(length: usize, radix: u8) -> impl StreamedParser<I, Item = C> + 'a
+pub fn digits_fixed<'a, I, C>(length: usize, radix: u8) -> impl IterableParser<I, Item = C> + 'a
 where
     I: Positioned<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
