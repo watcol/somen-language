@@ -24,22 +24,25 @@ macro_rules! int_parser {
 #[macro_export]
 macro_rules! token {
     ($(#[$attrs:meta])* $vis:vis enum $name:ident $(<
-        $($T:ident $(: $bound:path)?),* $(,)?
+        $($T:ident $(: $bound:path)? $(: ?$sized:path)? $(: $ltbound:lifetime)? $(= $default:ty)?),* $(,)?
     >)? : $src:ty
-    $(where $($U:ty : $whbound:path),* $(,)?)?
+    $(where $($U:ty $(: $whbound:path)? $(: ?$whsized:path)? $(: $whltbound:lifetime)?),* $(,)?)?
      {
         $(
-            $(#[token($($key:ident = $value:ident),* $(,)?)])?
+            $(#[$f_attrs:meta])*
+            $(@[$($key:ident = $value:ident),* $(,)?])?
             $var:ident $(($field:ty))? = $token:expr
         ),+ $(,)?
     }) => {
         $(#[$attrs])*
-        $vis enum $name $(<$($T),*>)? {
-            $($var $(($field))?,)+
+        $vis enum $name $(<$($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*>)?
+        $(where $($U $(: $whbound)? $(: ?$whsized)? $(: $whltbound)?,)*)?
+        {
+            $($(#[$f_attrs])* $var $(($field))?,)+
         }
 
-        impl $(<$($T $(: $bound)?),*>)? $name $(<$($T),*>)?
-        $(where $($U: $whbound,)*)?
+        impl $(<$($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*>)? $name $(<$($T),*>)?
+        $(where $($U $(: $whbound)? $(: ?$whsized)? $(: $whltbound)?,)*)?
         {
             #[allow(dead_code)]
             pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name $(<$($T),*>)?> + 'a
