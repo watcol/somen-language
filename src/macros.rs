@@ -52,15 +52,15 @@ macro_rules! token {
         $(where $($U $(: $whbound)? $(: ?$whsized)? $(: $whltbound)?,)*)?
         {
             #[allow(dead_code)]
-            pub fn parser<'a, I>() -> impl somen::parser::Parser<
-                I,
+            pub fn parser<'__parser, __Input>() -> impl somen::parser::Parser<
+                __Input,
                 Output = $name $(<$($lt,)* $($T),*>)?
-            > + 'a
+            > + '__parser
             where
-                I: Input<Ok=$src> + ?Sized + 'a,
+                __Input: Input<Ok=$src> + ?Sized + '__parser,
                 $(
-                    $($lt: 'a,)*
-                    $($T: 'a,)*
+                    $($lt: '__parser,)*
+                    $($T: '__parser,)*
                 )?
             {
                 somen::parser::choice((
@@ -126,12 +126,14 @@ macro_rules! __token_inner {
         $([$($lt:lifetime),*|$($T:ident),*])?; [match = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a $($(+ $lt)*)?
+        pub fn $fname<'__parser, __Input>() -> impl somen::parser::Parser<
+            __Input, Output = ($($field)?)
+        > + '__parser $($(+ $lt)*)?
         where
-           I: Positioned<Ok = Self> + ?Sized + 'a $($(+ $lt)*)?,
+           __Input: Positioned<Ok = Self> + ?Sized + '__parser $($(+ $lt)*)?,
             $(
-                $($lt: 'a,)*
-                $($T: 'a,)*
+                $($lt: '__parser,)*
+                $($T: '__parser,)*
             )?
         {
             somen::parser::wrapper::Expect::new(
@@ -148,13 +150,15 @@ macro_rules! __token_inner {
         $([$($lt:lifetime),*|$($T:ident),*])?; [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I, T>(inner: T) -> impl somen::parser::Parser<I, Output = $field> + 'a $($(+ $lt)*)?
+        pub fn $fname<'__parser, __Input, __Value>(inner: __Value) -> impl somen::parser::Parser<
+            __Input, Output = $field
+        > + '__parser $($(+ $lt)*)?
         where
-            I: Positioned<Ok = Self> + ?Sized + 'a $($(+ $lt)*)?,
-            T: PartialEq<$field> + 'a $($(+ $lt)*)?,
+            __Input: Positioned<Ok = Self> + ?Sized + '__parser $($(+ $lt)*)?,
+            __Value: PartialEq<$field> + '__parser $($(+ $lt)*)?,
             $(
-                $($lt: 'a,)*
-                $($T: 'a,)*
+                $($lt: '__parser,)*
+                $($T: '__parser,)*
             )?
         {
             somen::parser::wrapper::Expect::new(
@@ -178,12 +182,15 @@ macro_rules! __token_inner {
         $([$($lt:lifetime),*|$($T:ident),*])?; [single = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = $name $(<$($lt,)* $($T),*>)?> + 'a
+        pub fn $fname<'__parser, __Input>() -> impl somen::parser::Parser<
+            __Input,
+            Output = $name $(<$($lt,)* $($T),*>)?
+        > + '__parser
         where
-            I: Input<Ok=$src> + ?Sized + 'a,
+            __Input: Input<Ok=$src> + ?Sized + '__parser,
             $(
-                $($lt: 'a,)*
-                $($T: 'a,)*
+                $($lt: '__parser,)*
+                $($T: '__parser,)*
             )?
         {
             somen::parser::wrapper::Map::new(
