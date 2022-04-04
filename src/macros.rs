@@ -24,6 +24,7 @@ macro_rules! int_parser {
 #[macro_export]
 macro_rules! token {
     ($(#[$attrs:meta])* $vis:vis enum $name:ident $(<
+        $($lt:lifetime $(: $ltltbound:lifetime)?),* $(,)?
         $($T:ident $(: $bound:path)? $(: ?$sized:path)? $(: $ltbound:lifetime)? $(= $default:ty)?),* $(,)?
     >)? : $src:ty
     $(where $($U:ty $(: $whbound:path)? $(: ?$whsized:path)? $(: $whltbound:lifetime)?),* $(,)?)?
@@ -35,20 +36,32 @@ macro_rules! token {
         ),+ $(,)?
     }) => {
         $(#[$attrs])*
-        $vis enum $name $(<$($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*>)?
+        $vis enum $name $(<
+            $($lt $(: $ltltbound)?,)*
+            $($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*
+        >)?
         $(where $($U $(: $whbound)? $(: ?$whsized)? $(: $whltbound)?,)*)?
         {
             $($(#[$f_attrs])* $var $(($field))?,)+
         }
 
-        impl $(<$($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*>)? $name $(<$($T),*>)?
+        impl $(<
+            $($lt $(: $ltltbound)?,)*
+            $($T $(: $bound)? $(: ?$sized)? $(: $ltbound)? $(= $default)?),*
+        >)? $name $(<$($lt,)* $($T),*>)?
         $(where $($U $(: $whbound)? $(: ?$whsized)? $(: $whltbound)?,)*)?
         {
             #[allow(dead_code)]
-            pub fn parser<'a, I>() -> impl somen::parser::Parser<I, Output = $name $(<$($T),*>)?> + 'a
+            pub fn parser<'a, I>() -> impl somen::parser::Parser<
+                I,
+                Output = $name $(<$($lt,)* $($T),*>)?
+            > + 'a
             where
                 I: Input<Ok=$src> + ?Sized + 'a,
-                $($($T: 'a,)*)?
+                $(
+                    $($lt: 'a,)*
+                    $($T: 'a,)*
+                )?
             {
                 somen::parser::choice((
                     $(
@@ -60,8 +73,8 @@ macro_rules! token {
                 ))
             }
 
-            $crate::__token_inner! {@expand [$name] [$src] $([$([$T])*])?;
-                $([$var] [$($field)?] [$token] [] $($([$key = $value])*)?;)+
+            $crate::__token_inner! {@expand [$name] [$src]  $([$([$lt])* | $([$T])*])?;
+                $([$var] [$($field)?] [$token] [|] $($([$key = $value])*)?;)+
             }
         }
     };
@@ -71,7 +84,7 @@ macro_rules! token {
 #[doc(hidden)]
 macro_rules! __token_inner {
     (@expand [$name:ident] [$src:ty]; $(
-            [$var:ident] [$($field:ty)?] [$token:expr] [] $([$key:ident = $value:ident])*;
+            [$var:ident] [$($field:ty)?] [$token:expr] [|] $([$key:ident = $value:ident])*;
     )*) => {
         $(
             $crate::__token_inner! {
@@ -80,32 +93,46 @@ macro_rules! __token_inner {
             }
         )*
     };
-    (@expand [$name:ident] [$src:ty] []; $(
-            [$var:ident] [$($field:ty)?] [$token:expr] [$([$T:ident])*] $([$key:ident = $value:ident])*;
+    (@expand [$name:ident] [$src:ty] [|]; $(
+            [$var:ident] [$($field:ty)?] [$token:expr] [$([$lt:lifetime])* | $([$T:ident])*]
+            $([$key:ident = $value:ident])*;
     )*) => {
         $(
             $crate::__token_inner! {
-                @method [$name] [$src] [$var] [$($field)?] [$token] [$($T),*];
+                @method [$name] [$src] [$var] [$($field)?] [$token] [$($lt),*|$($T),*];
                 $([$key = $value])*
             }
         )*
     };
-    (@expand [$name:ident] [$src:ty] [[$T:ident]$([$rest:ident])*]; $(
-            [$var:ident] [$($field:ty)?] [$token:expr] [$([$U:ident])*] $([$key:ident = $value:ident])*;
+    (@expand [$name:ident] [$src:ty] [|[$T:ident]$([$rest:ident])*]; $(
+            [$var:ident] [$($field:ty)?] [$token:expr] [$([$lt:lifetime])* | $([$U:ident])*]
+            $([$key:ident = $value:ident])*;
     )*) => {
-        $crate::__token_inner! { @expand [$name] [$src] [$([$rest])*]; $(
-            [$var] [$($field)?] [$token] [$([$U])*[$T]] $([$key = $value])*;
+        $crate::__token_inner! { @expand [$name] [$src] [|$([$rest])*]; $(
+            [$var] [$($field)?] [$token] [$([$lt])*|$([$U])*[$T]] $([$key = $value])*;
         )* }
     };
-    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr] $([$($T:ident),*])?;) => {};
-    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr] $([$($T:ident),*])?;
-        [match = $fname:ident]$([$k:ident = $v:ident])*) => {
+    (@expand [$name:ident] [$src:ty] [[$lt:lifetime]$([$rest:lifetime])*|$([$T:ident])*]; $(
+            [$var:ident] [$($field:ty)?] [$token:expr] [$([$lt2:lifetime])*|]
+            $([$key:ident = $value:ident])*;
+    )*) => {
+        $crate::__token_inner! { @expand [$name] [$src] [$([$rest])*|$([$T])*]; $(
+            [$var] [$($field)?] [$token] [$([$lt2])*[$lt]|] $([$key = $value])*;
+        )* }
+    };
+    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr]
+        $([$($lt:lifetime),*|$($T:ident),*])?;) => {};
+    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr]
+        $([$($lt:lifetime),*|$($T:ident),*])?; [match = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a
+        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = ($($field)?)> + 'a $($(+ $lt)*)?
         where
-            I: Positioned<Ok=$name $(<$($T),*>)?> + ?Sized + 'a,
-            $($($T: 'a,)*)?
+           I: Positioned<Ok = Self> + ?Sized + 'a $($(+ $lt)*)?,
+            $(
+                $($lt: 'a,)*
+                $($T: 'a,)*
+            )?
         {
             somen::parser::wrapper::Expect::new(
                 somen::parser::is_some(|c|
@@ -115,17 +142,20 @@ macro_rules! __token_inner {
             )
         }
 
-        $crate::__token_inner! { @method [$name] [$src] [$var] [$($field)?] [$token] $([$($T),*])?; $([$k = $v])* }
+        $crate::__token_inner! { @method [$name] [$src] [$var] [$($field)?] [$token] $([$($lt),*|$($T),*])?; $([$k = $v])* }
     };
-    (@method [$name:ident] [$src:ty] [$var:ident] [$field:ty] [$token:expr] $([$($T:ident),*])?;
-        [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
+    (@method [$name:ident] [$src:ty] [$var:ident] [$field:ty] [$token:expr]
+        $([$($lt:lifetime),*|$($T:ident),*])?; [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I, T>(inner: T) -> impl somen::parser::Parser<I, Output = $field> + 'a
+        pub fn $fname<'a, I, T>(inner: T) -> impl somen::parser::Parser<I, Output = $field> + 'a $($(+ $lt)*)?
         where
-            I: Positioned<Ok=$name $(<$($T),*>)?> + ?Sized + 'a,
-            T: PartialEq<$field> + 'a,
-            $($($T: 'a,)*)?
+            I: Positioned<Ok = Self> + ?Sized + 'a $($(+ $lt)*)?,
+            T: PartialEq<$field> + 'a $($(+ $lt)*)?,
+            $(
+                $($lt: 'a,)*
+                $($T: 'a,)*
+            )?
         {
             somen::parser::wrapper::Expect::new(
                 somen::parser::is_some(move |c| match c {
@@ -136,22 +166,25 @@ macro_rules! __token_inner {
             )
         }
 
-        $crate::__token_inner! { @method [$name] [$src] [$var] [$field] [$token] $([$($T),*])?; $([$k = $v])* }
+        $crate::__token_inner! { @method [$name] [$src] [$var] [$field] [$token] $([$($lt),*|$($T),*])?; $([$k = $v])* }
     };
-    (@method [$name:ident] [$src:ty] [$var:ident] [] [$token:expr] $([$($T:ident),*])?;
-        [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
+    (@method [$name:ident] [$src:ty] [$var:ident] [] [$token:expr]
+        $([$($lt:lifetime),*|$($T:ident),*])?; [match_arg = $fname:ident]$([$k:ident = $v:ident])*) => {
         compile_error!("`match_arg` is not supported for variants without fields.");
 
-        $crate::__token_inner! { @method [$name] [$src] [$var] [] [$token] $([$($T),*])?; $([$k = $v])* }
+        $crate::__token_inner! { @method [$name] [$src] [$var] [] [$token] $([$($lt),*|$($T),*])?; $([$k = $v])* }
     };
-    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr] $([$($T:ident),*])?;
-        [single = $fname:ident]$([$k:ident = $v:ident])*) => {
+    (@method [$name:ident] [$src:ty] [$var:ident] [$($field:ty)?] [$token:expr]
+        $([$($lt:lifetime),*|$($T:ident),*])?; [single = $fname:ident]$([$k:ident = $v:ident])*) => {
         #[allow(dead_code)]
         #[inline]
-        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = $name $(<$($T),*>)?> + 'a
+        pub fn $fname<'a, I>() -> impl somen::parser::Parser<I, Output = $name $(<$($lt,)* $($T),*>)?> + 'a
         where
             I: Input<Ok=$src> + ?Sized + 'a,
-            $($($T: 'a,)*)?
+            $(
+                $($lt: 'a,)*
+                $($T: 'a,)*
+            )?
         {
             somen::parser::wrapper::Map::new(
                 $token,
@@ -159,7 +192,7 @@ macro_rules! __token_inner {
             )
         }
 
-        $crate::__token_inner! { @method [$name] [$src] [$var] [$($field)?] [$token] $([$($T),*])?; $([$k = $v])* }
+        $crate::__token_inner! { @method [$name] [$src] [$var] [$($field)?] [$token] $([$($lt),*|$($T),*])?; $([$k = $v])* }
     };
     (@match $c:ident [$name:ident] [$var:ident];) => {
         match $c {
