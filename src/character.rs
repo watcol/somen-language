@@ -30,7 +30,6 @@ pub trait Character: Clone {
     /// [`byte_to_expect`]: Self::byte_to_expect
     #[inline]
     unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
-        assert!(byte.is_ascii());
         #[cfg(feature = "alloc")]
         {
             Expects::from(ExpectKind::Owned(
@@ -118,5 +117,44 @@ impl Character for char {
     #[inline]
     fn to_digit(&self, radix: u8) -> Option<u8> {
         Self::to_digit(*self, radix as u32).map(|d| d as u8)
+    }
+}
+
+impl Character for u8 {
+    #[inline]
+    fn eq_byte(&self, byte: u8) -> bool {
+        *self == byte
+    }
+
+    #[inline]
+    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
+        Expects::from(ExpectKind::Token(byte))
+    }
+
+    #[inline]
+    fn is_letter(&self) -> bool {
+        self.is_ascii_alphabetic()
+    }
+
+    #[inline]
+    fn is_digit(&self, radix: u8) -> bool {
+        if self.is_ascii_digit() {
+            *self < radix + b'0'
+        } else if self.is_ascii_alphabetic() {
+            self.to_ascii_uppercase() < radix - 10 + b'A'
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    unsafe fn to_digit_unchecked(&self, _radix: u8) -> u8 {
+        if *self > b'a' {
+            *self - b'a' + 10
+        } else if *self > b'A' {
+            *self - b'A' + 10
+        } else {
+            *self - b'0'
+        }
     }
 }

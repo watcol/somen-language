@@ -1,22 +1,3 @@
-/// Generates a function returns a integer parser.
-///
-/// This macro takes comma-separated list of patterns `prefix => radix` like `tag("0x") => 16`, and
-/// `_ => radix` in the last are interpreted as a fallback without prefix.
-#[macro_export]
-macro_rules! int_parser {
-    ($($prefix:expr => $radix:expr,)* _ => $rad:expr $(,)?) => {
-        |neg: bool| somen::parser::choice((
-            $(
-                somen::parser::combinator::Prefix::new(
-                    $prefix,
-                    $crate::numeric::integer::integer_trailing_zeros($radix, neg),
-                ),
-            )*
-            $crate::numeric::integer::integer($rad, neg),
-        ))
-    };
-}
-
 /// Generate enums represents tokens or syntax trees.
 ///
 /// In this macro, each variants must be formed `Self::Variant` or `Self::Variant(Type)` and if a
