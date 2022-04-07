@@ -50,7 +50,7 @@ fn lemire<F: Float>(neg: bool, mut man: u64, exp10: i32) -> Option<F> {
 
     let upperbit = hi >> 63;
     man = hi >> (upperbit + F::MASK_BITS as u64);
-    exp2 -= !upperbit as i32;
+    exp2 -= (upperbit ^ 1) as i32;
 
     if lo == 0 && hi & F::MASK == 0 && man & 3 == 1 {
         return None;
@@ -67,7 +67,7 @@ fn lemire<F: Float>(neg: bool, mut man: u64, exp10: i32) -> Option<F> {
         return Some(inf);
     }
 
-    Some(F::from_fp(neg, man, exp2))
+    Some(F::from_fp(neg, man & F::MAN_MASK, exp2))
 }
 
 fn mul128(a: u64, b: u64) -> (u64, u64) {
@@ -90,7 +90,9 @@ pub trait Float {
     #[doc(hidden)]
     const MASK_BITS: usize = 64 - 3 - Self::MANTISSA_BITS;
     #[doc(hidden)]
-    const MASK: u64 = !(1 << (Self::MASK_BITS + 1));
+    const MASK: u64 = (1 << Self::MASK_BITS) - 1;
+    #[doc(hidden)]
+    const MAN_MASK: u64 = (1 << Self::MANTISSA_BITS) - 1;
 
     /// Produce the float from sign, mantissa, and exponent.
     fn from_fp(neg: bool, mantissa: u64, exp2: i32) -> Self;
@@ -105,7 +107,7 @@ impl Float for f32 {
 
     #[inline]
     fn from_fp(neg: bool, mantissa: u64, exp2: i32) -> Self {
-        f32::from_bits((neg as u32) >> 31 | ((exp2 + Self::EMAX) as u32) >> 23 | mantissa as u32)
+        f32::from_bits((neg as u32) << 31 | ((exp2 + Self::EMAX) as u32) << 23 | mantissa as u32)
     }
 
     fn compute(neg: bool, mantissa: u64, exp10: i32) -> Self {
@@ -125,7 +127,7 @@ impl Float for f64 {
 
     #[inline]
     fn from_fp(neg: bool, mantissa: u64, exp2: i32) -> Self {
-        f64::from_bits((neg as u64) >> 63 | ((exp2 + Self::EMAX) as u64) >> 52 | mantissa)
+        f64::from_bits((neg as u64) << 63 | ((exp2 + Self::EMAX) as u64) << 52 | mantissa)
     }
 
     #[inline]

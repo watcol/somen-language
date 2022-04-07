@@ -1,5 +1,6 @@
 //! JSON parser implementation.
 use somen::{call, prelude::*};
+use somen_language::numeric::{float::float, signed};
 use somen_language::token;
 use std::collections::HashMap;
 
@@ -36,7 +37,7 @@ token! {
             tag("false").map(|_| false),
         )),
         @[match = number]
-        Number(f64) = number(),
+        Number(f64) = signed(float, false),
         @[match = string]
         String(String) = string(),
     }
@@ -60,28 +61,6 @@ fn spaces<'a, I: Input<Ok = char> + 'a>() -> impl Parser<I, Output = ()> + 'a {
         .repeat(..)
         .discard()
         .expect("spaces")
-}
-
-fn number<'a, I: Input<Ok = char> + ?Sized + 'a>() -> impl Parser<I, Output = f64> + 'a {
-    (
-        token('-').once().opt(),
-        choice_iterable((
-            token('0').once(),
-            (
-                one_of("123456789").expect("a non-zero digit").once(),
-                one_of("0123456789").expect("a digit").repeat(..),
-            ),
-        )),
-        (token('.').once(), one_of("0123456789").repeat(1..)).opt(),
-        (
-            one_of("eE").expect("e").once(),
-            one_of("+-").once().opt(),
-            one_of("0123456789").repeat(1..),
-        )
-            .opt(),
-    )
-        .collect::<String>()
-        .try_map(|n| n.parse::<f64>().map_err(|_| "a valid number"))
 }
 
 fn string<'a, I: Input<Ok = char> + ?Sized + 'a>() -> impl Parser<I, Output = String> + 'a {
@@ -138,6 +117,9 @@ fn main() {
             .sep_by(spaces(), ..)
             .between(spaces(), spaces());
         let mut lexed = tokens.parse_iterable(&mut stream);
-        println!("{:?}", JsonValue::parser().parse(&mut lexed).await.unwrap());
+        println!(
+            "{:#?}",
+            JsonValue::parser().parse(&mut lexed).await.unwrap()
+        );
     });
 }
