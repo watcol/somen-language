@@ -18,12 +18,14 @@ include = [
 
 [features]
 default = ['std']
-std = ['alloc', 'somen/std']
+std = ['alloc', 'somen/std', 'num-traits/std']
 alloc = ['somen/alloc']
+libm = ['num-traits/libm']
 
 [dependencies]
 somen = { version = "0.2.0", default_features = false }
 num-traits = { version = "0.2", default_features = false }
+compute-float = "0.1.0"
 
 [dev-dependencies]
 futures = "0.3"

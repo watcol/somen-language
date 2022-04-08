@@ -1,13 +1,11 @@
 //! Parsers for floating point decimals.
-mod lemire;
-
 use somen::prelude::*;
 
 use super::integer::fold_digits;
 use super::{digits, digits_trailing_zeros, signed};
 use crate::character::{character, Character};
 
-pub use lemire::{compute_float, Float};
+use compute_float::compute_float;
 
 /// A floating point number.
 ///
@@ -16,14 +14,37 @@ pub use lemire::{compute_float, Float};
 /// helper function.
 ///
 /// Also note that this function doesn't support infinities and NaNs.
+#[cfg(any(feature = "std", feature = "libm"))]
 #[inline]
 pub fn float<'a, N, I, C>(neg: bool) -> impl Parser<I, Output = N> + 'a
 where
-    N: Float + 'a,
+    N: compute_float::Float + num_traits::Float + 'a,
     I: Input<Ok = C> + ?Sized + 'a,
     C: Character + 'a,
 {
-    float_inner().map(move |(man, exp10)| compute_float(neg, man, exp10))
+    float_inner().map(move |(man, exp10)| {
+        compute_float(neg, man, exp10).unwrap_or_else(|| {
+            let res = N::from(man).unwrap() * N::from(10u8).unwrap().powi(exp10);
+            if neg {
+                -res
+            } else {
+                res
+            }
+        })
+    })
+}
+
+#[inline]
+#[cfg(not(any(feature = "std", feature = "libm")))]
+pub fn float<'a, N, I, C>(neg: bool) -> impl Parser<I, Output = N> + 'a
+where
+    N: compute_float::Float + 'a,
+    I: Input<Ok = C> + ?Sized + 'a,
+    C: Character + 'a,
+{
+    float_inner().try_map(move |(man, exp10)| {
+        compute_float(neg, man, exp10).ok_or("a valid floating point number")
+    })
 }
 
 fn float_inner<'a, I, C>() -> impl Parser<I, Output = (u64, i32)> + 'a
