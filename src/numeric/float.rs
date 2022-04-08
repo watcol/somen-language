@@ -5,12 +5,13 @@ use super::integer::fold_digits;
 use super::{digits, digits_trailing_zeros, signed};
 use crate::character::{character, Character};
 
-use compute_float::compute_float;
+#[doc(no_inline)]
+pub use compute_float::compute_float;
 
 /// A floating point number.
 ///
 /// This parser requires an integer part, but a decimal part and an exponent are optional.
-/// If you want to apply different rules, you can implement it by yourself using [`compute_float`]
+/// If you want to apply different rules, you can implement it by yourself using [`compute_float()`]
 /// helper function.
 ///
 /// Also note that this function doesn't support infinities and NaNs.
