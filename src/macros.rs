@@ -201,3 +201,184 @@ macro_rules! __token_inner {
         $name::$var
     };
 }
+
+/// Automatically generate a parser for infix expressions, using precedence climbing.
+#[macro_export]
+macro_rules! infix {
+    (
+        $name:ident: $output:ty;
+        $($atom_val:ident : $atom:expr => $atom_ex:expr;)+
+        $(
+            @[$type:ident $(($($vars:tt)*))?]
+            $($op:expr => $ex:expr;)+
+        )*
+    ) => {{
+        let $name = || somen::parser::choice(($(
+            somen::parser::wrapper::Map::new(
+                $atom,
+                |$atom_val| -> $output { $atom_ex },
+            ),
+        )+));
+
+        $(
+            let $name = move || $crate::__infix_inner! {
+                [$type $(($($vars)*))?] $name, $output;
+                $($op => $ex;)+
+            };
+         )*
+        $name()
+    }};
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __infix_inner {
+    ([prefix($val:ident)] $name:ident, $output:ty;
+     $($op:expr => $ex:expr;)+) => {{
+        extern crate alloc;
+
+        somen::parser::wrapper::Map::new(
+            (
+                somen::parser::iterable::combinator::Collect::<_, alloc::vec::Vec<_>>::new(
+                    somen::parser::iterable::generator::Repeat::new(
+                        somen::parser::one_of([$($op),+]),
+                        ..,
+                    )
+                ),
+                $name(),
+            ),
+            |(collect, init): (alloc::vec::Vec<_>, $output)| -> $output {
+                collect
+                    .into_iter()
+                    .rev()
+                    .fold(init, |$val: $output, op| match op {
+                        $(
+                            $op => $val,
+                         )+
+                        _ => unreachable!(),
+                    })
+            },
+        )
+    }};
+    ([prefix_once($val:ident)] $name:ident, $output:ty; $($op:expr => $ex:expr;)+) => {
+        somen::parser::wrapper::Map::new(
+            (somen::parser::combinator::Opt::new(somen::parser::one_of([$($op),+])), $name()),
+            |(op, $val): (core::option::Option<_>, $output)| -> $output {
+                match op {
+                    $(
+                        Some($op) => $ex,
+                     )+
+                    Some(_) => unreachable!(),
+                    None => $val,
+                }
+            },
+        )
+    };
+    ([postfix($val:ident)] $name:ident, $output:ty; $($op:expr => $ex:expr;)+) => {
+        somen::parser::iterable::combinator::Fold::new(
+            somen::parser::iterable::generator::Repeat::new(somen::parser::one_of([$($op),+]), ..),
+            $name(),
+            |$val: $output, op: _| match op {
+                $(
+                    $op => $ex,
+                 )+
+                _ => unreachable!(),
+            },
+        )
+    };
+    ([postfix_once($val:ident)] $name:ident, $output:ty; $($op:expr => $ex:expr;)+) => {
+        somen::parser::wrapper::Map::new(
+            ($name(), somen::parser::combinator::Opt::new(somen::parser::one_of([$($op),+]))),
+            |($val, op): ($output, core::option::Option<_>)| -> $output {
+                match op {
+                    $(
+                        Some($op) => $ex,
+                     )+
+                    Some(_) => unreachable!(),
+                    None => $val,
+                }
+            },
+        )
+    };
+    ([binary($rhs:ident $(: $rt:ty)? $(= $rp:expr)?, $lhs:ident $(: $lt:ty)? $(= $lp:expr)?)]
+     $name:ident, $output:ty; $($op:expr => $ex:expr;)+) => {
+        somen::parser::wrapper::Map::new(
+            (
+                $crate::__infix_inner!(@opt $name; $($rp)?),
+                somen::parser::combinator::Opt::new((
+                    somen::parser::one_of([$($op),+]),
+                    $crate::__infix_inner!(@opt $name; $($lp)?),
+                ))
+            ),
+            |($rhs, op): (
+                $crate::__infix_inner!(@opt_ty $output; $($rt)? $(= $rp)?),
+                core::option::Option<(_, $crate::__infix_inner!(@opt_ty $output; $($lt)? $(= $lp)?))>
+            )| -> $output {
+                match op {
+                    $(
+                        Some(($op, $lhs)) => $ex,
+                     )+
+                    Some(_) => unreachable!(),
+                    None => $rhs,
+                }
+            },
+        )
+    };
+    ([left($rhs:ident, $lhs:ident $(: $lt:ty)? $(= $lp:expr)?)] $name:ident, $output:ty;
+     $($op:expr => $ex:expr;)+) => {
+        somen::parser::iterable::combinator::Fold::new(
+            somen::parser::iterable::generator::Repeat::new(
+                (somen::parser::one_of([$($op),+]), $crate::__infix_inner!(@opt $name; $($lp)?)),
+                ..
+            ),
+            $name(),
+            |$rhs: $output, (op, $lhs): (_, $crate::__infix_inner!(@opt_ty $output; $($lt)? $(= $lp)?))|
+                -> $output {
+                match op {
+                    $(
+                        $op => $ex,
+                     )+
+                    _ => unreachable!(),
+                }
+            },
+        )
+    };
+    ([right($rhs:ident $(: $rt:ty)? $(= $rp:expr)?, $lhs:ident)] $name:ident, $output:ty;
+     $($op:expr => $ex:expr;)+) => {{
+        extern crate alloc;
+
+        somen::parser::wrapper::Map::new(
+            (
+                somen::parser::iterable::combinator::Collect::<_, alloc::vec::Vec<_>>::new(
+                    somen::parser::iterable::generator::Repeat::new(
+                        (
+                            $crate::__infix_inner!(@opt $name; $($rp)?),
+                            somen::parser::one_of([$($op),+]),
+                        ),
+                        ..,
+                    )
+                ),
+                $name(),
+            ),
+            |(collect, init): (
+                alloc::vec::Vec<($crate::__infix_inner!(@opt_ty $output; $($rt)? $(= $rp)?), _)>,
+                $output
+            )| -> $output {
+                collect
+                    .into_iter()
+                    .rev()
+                    .fold(init, |$lhs, ($rhs, op)| match op {
+                        $(
+                            $op => $ex,
+                         )+
+                        _ => unreachable!(),
+                    })
+            },
+        )
+    }};
+    (@opt $name:ident;) => { $name() };
+    (@opt $name:ident; $parser:expr) => { $parser };
+    (@opt_ty $output:ty;) => { $output };
+    (@opt_ty $output:ty; = $parser:expr) => { _ };
+    (@opt_ty $output:ty; $type:ty $(= $parser:expr)?) => { $type };
+}
