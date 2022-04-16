@@ -253,7 +253,7 @@ macro_rules! __infix_inner {
                     .rev()
                     .fold(init, |$val: $output, op| match op {
                         $(
-                            $op => $val,
+                            $op => $ex,
                          )+
                         _ => unreachable!(),
                     })
