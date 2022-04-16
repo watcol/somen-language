@@ -203,6 +203,8 @@ macro_rules! __token_inner {
 }
 
 /// Automatically generate a parser for infix expressions, using precedence climbing.
+#[cfg(feature = "alloc")]
+#[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
 #[macro_export]
 macro_rules! infix {
     (

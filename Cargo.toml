@@ -21,6 +21,7 @@ default = ['std']
 std = ['alloc', 'somen/std', 'num-traits/std']
 alloc = ['somen/alloc']
 libm = ['num-traits/libm']
+nightly = []
 
 [dependencies]
 somen = { version = "0.2.0", default_features = false }
