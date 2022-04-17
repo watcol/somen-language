@@ -16,6 +16,10 @@ include = [
   "src/**/*.rs"
 ]
 
+# Debug informations will explodes because of the nests of "impl Parser".
+[profile.dev]
+debug = false
+
 [features]
 default = ['std']
 std = ['alloc', 'somen/std', 'num-traits/std']
