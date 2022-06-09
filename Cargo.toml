@@ -28,7 +28,7 @@ libm = ['num-traits/libm']
 nightly = []
 
 [dependencies]
-somen = { version = "0.2.0", default_features = false }
+somen = { version = "0.3.0-beta", default_features = false }
 num-traits = { version = "0.2", default_features = false }
 compute-float = "0.1.0"
 

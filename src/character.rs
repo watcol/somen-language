@@ -1,6 +1,7 @@
 //! Abstractions for characters. (`char`, `u8`, ...)
+#[cfg(feature = "alloc")]
 use alloc::string::ToString;
-use somen::error::{ExpectKind, Expects};
+use somen::error::Expects;
 use somen::prelude::*;
 
 /// A parser for characters.
@@ -29,23 +30,22 @@ pub trait Character: Clone {
     ///
     /// [`byte_to_expect`]: Self::byte_to_expect
     #[inline]
-    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
+    #[cfg_attr(not(feature = "alloc"), allow(unused_variables))]
+    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects {
         #[cfg(feature = "alloc")]
         {
-            Expects::from(ExpectKind::Owned(
-                char::from_u32_unchecked(byte as u32).to_string(),
-            ))
+            Expects::from(char::from_u32_unchecked(byte as u32).to_string())
         }
         #[cfg(not(feature = "alloc"))]
         {
-            Expects::from(ExpectKind::Static("a byte"))
+            Expects::from("a byte")
         }
     }
 
     /// Converts a byte to an [`Expects`], the error specifier of the somen parser combinator.
     ///
     /// This function returns [`None`] if `byte` is not an ascii character.
-    fn byte_to_expect(byte: u8) -> Option<Expects<Self>> {
+    fn byte_to_expect(byte: u8) -> Option<Expects> {
         if byte.is_ascii() {
             Some(unsafe { Self::byte_to_expect_unchecked(byte) })
         } else {
@@ -100,11 +100,6 @@ impl Character for char {
     }
 
     #[inline]
-    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
-        Expects::from(ExpectKind::Token(char::from_u32_unchecked(byte as u32)))
-    }
-
-    #[inline]
     fn is_letter(&self) -> bool {
         self.is_ascii_alphabetic()
     }
@@ -124,11 +119,6 @@ impl Character for u8 {
     #[inline]
     fn eq_byte(&self, byte: u8) -> bool {
         *self == byte
-    }
-
-    #[inline]
-    unsafe fn byte_to_expect_unchecked(byte: u8) -> Expects<Self> {
-        Expects::from(ExpectKind::Token(byte))
     }
 
     #[inline]
