@@ -5,7 +5,7 @@ use somen_language::{
 };
 
 fn main() {
-    futures::executor::block_on(async {
+    futures_executor::block_on(async {
         let mut stream = stream::from_iter("-1*(3+4)-4*3/6".chars())
             .positioned::<usize>()
             .buffered_rewind();

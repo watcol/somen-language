@@ -93,7 +93,7 @@ fn string<'a, I: Input<Ok = char> + ?Sized + 'a>() -> impl Parser<I, Output = St
 }
 
 fn main() {
-    futures::executor::block_on(async {
+    futures_executor::block_on(async {
         let mut stream = stream::from_iter(
             r#"{
                 "Image": {
